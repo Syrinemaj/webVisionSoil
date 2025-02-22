@@ -1,6 +1,7 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-
+import ReactPDF from '@react-pdf/renderer';
+import { Page, Text, View, Document, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer";
 import DashboardLayout from "@/components/layout/DashboardLayoutf";
 import {
   LineChart,
@@ -23,6 +24,39 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+//import React from 'react';
+
+
+// Styles pour le PDF
+const styles = StyleSheet.create({
+  page: { padding: 20, fontSize: 12 },
+  section: { marginBottom: 10 },
+  title: { fontSize: 18, marginBottom: 10, fontWeight: "bold" },
+  text: { marginBottom: 5 },
+});
+
+// Composant du document PDF
+const MyDocument = () => (
+  <Document>
+    <Page size="A4" style={styles.page}>
+      <Text style={styles.title}>AI Analysis Report</Text>
+      <View style={styles.section}>
+        <Text style={styles.text}>Total Scanned: {aiAnalysis.diseaseDetection.totalScanned}</Text>
+        <Text style={styles.text}>Healthy Plants: {aiAnalysis.diseaseDetection.healthyCount}</Text>
+        <Text style={styles.text}>Diseased Plants: {aiAnalysis.diseaseDetection.diseasedCount}</Text>
+        <Text style={styles.text}>Accuracy: {aiAnalysis.diseaseDetection.accuracy}%</Text>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.text}>Soil Health: {aiAnalysis.soilHealth.status}</Text>
+        <Text style={styles.text}>Confidence: {aiAnalysis.soilHealth.confidence}%</Text>
+        <Text style={styles.text}>Recommendations:</Text>
+        {aiAnalysis.soilHealth.recommendations.map((rec, index) => (
+          <Text key={index} style={styles.text}>- {rec}</Text>
+        ))}
+      </View>
+    </Page>
+  </Document>
+);
 
 // Mock sensor data - would be replaced with real API data
 
@@ -68,17 +102,7 @@ const statusColors = {
 
 
 const EngineerDashboard = () => {
-  const handleGenerateReport = () => {
-    // Simulate AI analysis and report generation
-    toast.promise(
-      new Promise((resolve) => setTimeout(resolve, 3000)),
-      {
-        loading: "AI analyzing data and generating comprehensive report...",
-        success: "AI analysis complete. Report has been sent to Bank and Insurance dashboards",
-        error: "Failed to generate report",
-      }
-    );
-  };
+ 
 
   return (
     <DashboardLayout>
@@ -89,15 +113,19 @@ const EngineerDashboard = () => {
           <p className="text-gray-500">
             Monitor and manage sensor diagnostics with AI-powered insights
           </p>
+          </div>
+          <PDFDownloadLink document={<MyDocument />} fileName="AI_Analysis_Report.pdf">
+            {({ loading }) => (
+              <button
+                className="px-4 py-2 bg-soil-600 text-white rounded-lg hover:bg-soil-700 flex items-center gap-2"
+                onClick={() => toast.success("PDF Generated Successfully!")}
+              >
+                <FileDown className="w-4 h-4" />
+                {loading ? "Generating..." : "Generate AI Report"}
+              </button>
+            )}
+          </PDFDownloadLink>
         </div>
-        <button
-          onClick={handleGenerateReport}
-          className="px-4 py-2 bg-soil-600 text-white rounded-lg hover:bg-soil-700 flex items-center gap-2"
-        >
-          <FileDown className="w-4 h-4" />
-          Generate AI Report
-        </button>
-      </div>
 
       {/* AI Vision Analysis */}
       <Card className="bg-gradient-to-br from-soil-50 to-white">
