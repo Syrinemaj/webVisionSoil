@@ -108,6 +108,60 @@ app.post("/logout", (req, res) => {
   res.clearCookie("token"); // Suppression du cookie JWT ou session
   res.json({ success: true, message: "Déconnecté avec succès" });
 });
+// 🔹 Récupération de la liste des utilisateurs
+app.get('/api/users', (req, res) => {
+  const query = 'SELECT id, first_name, last_name, email, role FROM users';
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Erreur SQL:', err);
+      return res.status(500).json({ message: 'Erreur lors de la récupération des utilisateurs' });
+    }
+    res.status(200).json(results);
+  });
+});
+
+// 🔹 Suppression d'un utilisateur
+app.delete('/api/users/:id', (req, res) => {
+  const { id } = req.params;
+
+  if (!id || isNaN(id)) {
+    return res.status(400).json({ message: 'ID invalide' });
+  }
+
+  const query = 'DELETE FROM users WHERE id = ?';
+  db.query(query, [id], (err, result) => {
+    if (err) {
+      console.error('Erreur suppression:', err);
+      return res.status(500).json({ message: 'Erreur lors de la suppression' });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+    res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
+  });
+});
+
+// 🔹 Mise à jour d'un utilisateur
+app.put('/api/users/:id', (req, res) => {
+  const { id } = req.params;
+  const { first_name, last_name, email, role } = req.body;
+
+  if (!id || isNaN(id) || !first_name || !last_name || !email || !role) {
+    return res.status(400).json({ message: 'Champs invalides' });
+  }
+
+  const query = `UPDATE users SET first_name = ?, last_name = ?, email = ?, role = ? WHERE id = ?`;
+  db.query(query, [first_name, last_name, email, role, id], (err, result) => {
+    if (err) {
+      console.error('Erreur mise à jour:', err);
+      return res.status(500).json({ message: 'Erreur interne' });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+    res.status(200).json({ message: 'Utilisateur mis à jour avec succès' });
+  });
+});
 
 
 // Start the server
