@@ -87,7 +87,7 @@ app.post("/login", (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) return res.status(400).json({ success: false, message: "Invalid password" });
-
+ 
     // Store user data in session
     req.session.user = { id: user.id, name: user.first_name, email: user.email, role: user.role };
 
@@ -140,7 +140,46 @@ app.delete('/api/users/:id', (req, res) => {
     res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
   });
 });
+// Route pour compter le nombre d'ingénieurs
+app.get('/api/engineers/count', (req, res) => {
+  const query = 'SELECT COUNT(*) AS count FROM users WHERE role = "engineer"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: 'Erreur lors du comptage des ingénieurs' });
+    }
+    res.json({ count: results[0].count });
+  });
+});
+// Route pour compter le nombre d'agriculteurs (farmers)
+app.get('/api/farmers/count', (req, res) => {
+  const query = 'SELECT COUNT(*) AS count FROM users WHERE role = "farmer"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: 'Erreur lors du comptage des agriculteurs' });
+    }
+    res.json({ count: results[0].count });
+  });
+});
+// Route pour récupérer un utilisateur par ID
+app.get("/api/user/profile/:id", (req, res) => {
+  const userId = req.params.id;
+  const query = "SELECT first_name, last_name, role FROM users WHERE id = ?";
+  
+  db.query(query, [userId], (err, result) => {
+    if (err) {
+      console.error("Erreur lors de la récupération de l'utilisateur :", err);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
 
+    if (result.length === 0) {
+      return res.status(404).json({ error: "Utilisateur non trouvé" });
+    }
+
+    res.json(result[0]); // Renvoie les données de l'utilisateur
+  });
+});
 // 🔹 Mise à jour d'un utilisateur
 app.put('/api/users/:id', (req, res) => {
   const { id } = req.params;

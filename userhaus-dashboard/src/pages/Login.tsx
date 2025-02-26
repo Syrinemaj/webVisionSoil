@@ -33,10 +33,14 @@ export const Login = () => {
         const { user } = response.data;
 
         toast.success("Connexion réussie !");
-        localStorage.setItem("authToken", response.data.token);
-        localStorage.setItem("userRole", user.role); // Store user role
+        window.localStorage.setItem("authToken", response.data.token);
+        window.localStorage.setItem("userRole", user.role);
+        window.localStorage.setItem("loggedIn", "true");
+        localStorage.setItem("userId", user.id); // ✅ Correction ici
 
-        // 🔹 Redirect based on role
+        console.log("Utilisateur connecté :", user);
+
+        // 🔹 Redirection selon le rôle
         switch (user.role) {
           case "admin":
             window.location.href = "/admin";
@@ -49,6 +53,7 @@ export const Login = () => {
             break;
           default:
             window.location.href = "/dashboard";
+            break;
         }
       } else {
         toast.error(response.data.message || "Échec de la connexion.");
@@ -132,4 +137,3 @@ export const Login = () => {
 };
 
 export default Login;
-

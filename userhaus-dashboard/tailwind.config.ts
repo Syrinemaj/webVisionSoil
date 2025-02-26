@@ -1,13 +1,9 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
   darkMode: ["class"],
-  content: [
-    "./pages/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./app/**/*.{ts,tsx}",
-    "./src/**/*.{ts,tsx}",
-  ],
+  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   prefix: "",
   theme: {
     container: {
@@ -20,88 +16,52 @@ export default {
     extend: {
       colors: {
         border: "hsl(var(--border))",
-		input: "#000000", // Champs de saisie noirs
-        ring: "#000000", // Anneaux de focus en noir
-  /** 🎨 Couleurs principales **/
-  background: "#FFFFFF",
-  foreground: "#000000", // Texte par défaut en noir
-
-  /** ✅ Titres en noir **/
-  title: "#000000",
-
-  primary: {
-	DEFAULT: "#678B25", // Vert principal
-	hover: "#56771F", // Vert foncé au survol
-	foreground: "#FFFFFF", // Texte blanc sur boutons verts
-  },
-  secondary: {
-	DEFAULT: "#FFFFFF", // Blanc pour boutons et fonds
-	hover: "#F0F0F0", // Gris très clair au survol
-	foreground: "#000000", // Texte noir pour contraste
-  },
-  accent: {
-	DEFAULT: "#F5F5F5", // Gris clair
-	foreground: "#000000",
-  },
-
-  destructive: {
-	DEFAULT: "#DC2626", // Rouge pour actions dangereuses
-	foreground: "#FFFFFF",
-  },
-  muted: {
-	DEFAULT: "#E5E5E5",
-	foreground: "#000000",
-  },
-
-  popover: {
-	DEFAULT: "#FFFFFF",
-	foreground: "#000000",
-  },
-  card: {
-	DEFAULT: "hsl(var(--card))",
-	foreground: "hsl(var(--card-foreground))",
-  },
-  soil: {
-	100: "#E6F4EA",
-	200: "#CEEAD6",
-	300: "#A8DAB5",
-	400: "#81C995",
-	500: "#5BB974",
-	600: "#34A853",
-	700: "#2D923F",
-	800: "#267C2B",
-	900: "#1E6623",
-  },
-        /** 🎨 Sidebar avec des nuances de vert **/
-        sidebar: {
-          DEFAULT: "#F5F5F5",
-          foreground: "#678B25",
-          primary: "#678B25",
-          "primary-foreground": "#FFFFFF",
-          accent: "#E5E5E5",
-          "accent-foreground": "#678B25",
-          border: "#D4D4D4",
-          ring: "#678B25",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "#2D9596",
+          foreground: "#ffffff",
         },
+        secondary: {
+          DEFAULT: "#9AD0C2",
+          foreground: "#1a1a1a",
+        },
+        success: {
+          DEFAULT: "#4BB543",
+          foreground: "#ffffff",
+        },
+        warning: {
+          DEFAULT: "#FFA500",
+          foreground: "#ffffff",
+        },
+        error: {
+          DEFAULT: "#FF0033",
+          foreground: "#ffffff",
+        },
+        card: {
+          DEFAULT: "rgba(255, 255, 255, 0.1)",
+          foreground: "hsl(var(--foreground))",
+        },
+        soil: {
+          50: "#F8FAF9",
+          100: "#E7F3EF",
+          200: "#C5E1D9",
+          300: "#A3CFC3",
+          400: "#81BDAD",
+          500: "#5FAB97",
+          600: "#4D8A7A",
+          700: "#3A685C",
+          800: "#28463E",
+          900: "#152320",
+        }
       },
-
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
-	  
-      typography: (theme) => ({
-        DEFAULT: {
-          css: {
-            h1: { color: theme("colors.title") },
-            h2: { color: theme("colors.title") },
-            h3: { color: theme("colors.title") },
-            h4: { color: theme("colors.title") },
-          },
-        },
-      }),
-
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -111,13 +71,22 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "fade-out": {
+          "0%": { opacity: "1", transform: "translateY(0)" },
+          "100%": { opacity: "0", transform: "translateY(10px)" },
+        },
       },
-
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-in": "fade-in 0.3s ease-out",
+        "fade-out": "fade-out 0.3s ease-out",
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
-} satisfies Config; 
+  plugins: [require("tailwindcss-animate")],
+} satisfies Config;
