@@ -12,13 +12,19 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import RobotSelection from "./pages/Engineer/RobotSelection";
 import Farmer from "./pages/Farmer/Farmer";
-import Layout from "@/components/layout/Layout"; // ✅ Ensure this file exists
-import ProtectedRoute from "./pages/ProtectedRoute"; // ✅ Ensure this exists
+import Layout from "@/components/layout/Layout";
+import ProtectedRoute from "./pages/ProtectedRoute";
+import Dashboard from "./pages/Admin/Admin";
+// ✅ Import missing components
+
+import RobotManagement from "./pages/Admin/RobotManagement";
+import FarmManagement from "./pages/Admin/FarmManagement";
+import UserManagement from "./pages/Admin/UserManagement";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const isLoggedIn = localStorage.getItem("loggedIn") === "true"; // ✅ Convert to boolean
+  const isLoggedIn = localStorage.getItem("loggedIn") === "true";
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -27,27 +33,63 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Public Routes (Accessible to Everyone) */}
+            {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
-            {/* Protected Routes (Inside Layout) */}
+            {/* Protected Routes (Requires Authentication) */}
             {isLoggedIn ? (
               <Route element={<Layout />}>
+                {/* Engineer Routes */}
                 <Route element={<ProtectedRoute allowedRoles={["engineer"]} />}>
-                <Route path="/farm-selection" element={<FarmSelection />} />
-                <Route path="/dashboard/:farmId" element={<FarmDashboard />} />
-                <Route path="/engineer" element={<RobotSelection />} />
+                  <Route path="/farm-selection" element={<FarmSelection />} />
+                  <Route path="/dashboard/:farmId" element={<FarmDashboard />} />
+                  <Route path="/engineer" element={<RobotSelection />} />
                 </Route>
+
+                {/* Farmer Routes */}
                 <Route element={<ProtectedRoute allowedRoles={["farmer"]} />}>
-                <Route path="/farmer" element={<Farmer />} />
+                  <Route path="/farmer" element={<Farmer />} />
                 </Route>
-             
-                
+
+                {/* Admin Routes */}
+                <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+                <Route 
+            path="/admin" 
+            element={<Dashboard />} 
+          />
+                  <Route
+                    path="/admin/robots"
+                    element={
+                     
+                        <RobotManagement />
+                     
+                    }
+                  />
+                  <Route
+                    path="/admin/farms"
+                    element={
+                      
+                        <FarmManagement />
+                      
+                    }
+                  />
+                  <Route
+                    path="/admin/users"
+                    element={
+                      
+                        <UserManagement />
+                      
+                    }
+                  />
+                </Route>
+
+                {/* Catch-All Route */}
                 <Route path="*" element={<NotFound />} />
               </Route>
             ) : (
+              // Redirect to Login if Not Authenticated
               <Route path="*" element={<Navigate to="/login" replace />} />
             )}
           </Routes>

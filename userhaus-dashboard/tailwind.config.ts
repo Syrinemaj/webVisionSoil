@@ -1,6 +1,3 @@
-
-import type { Config } from "tailwindcss";
-
 export default {
   darkMode: ["class"],
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
@@ -21,12 +18,25 @@ export default {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "#2D9596",
+          DEFAULT: "#6D8E3E", // ✅ Couleur verte extraite de ton image
           foreground: "#ffffff",
         },
         secondary: {
           DEFAULT: "#9AD0C2",
           foreground: "#1a1a1a",
+        },
+        soil: {
+          DEFAULT: "#6D8E3E", // ✅ Nouvelle couleur dominante
+          50: "#f2f6eb",
+          100: "#e4ecd6",
+          200: "#c3d8ac",
+          300: "#a2c482",
+          400: "#81b058",
+          500: "#6D8E3E", // ✅ Couleur principale
+          600: "#4f6a2f",
+          700: "#384d23",
+          800: "#222f16",
+          900: "#0b1209",
         },
         success: {
           DEFAULT: "#4BB543",
@@ -44,18 +54,6 @@ export default {
           DEFAULT: "rgba(255, 255, 255, 0.1)",
           foreground: "hsl(var(--foreground))",
         },
-        soil: {
-          50: "#F8FAF9",
-          100: "#E7F3EF",
-          200: "#C5E1D9",
-          300: "#A3CFC3",
-          400: "#81BDAD",
-          500: "#5FAB97",
-          600: "#4D8A7A",
-          700: "#3A685C",
-          800: "#28463E",
-          900: "#152320",
-        }
       },
       borderRadius: {
         lg: "var(--radius)",

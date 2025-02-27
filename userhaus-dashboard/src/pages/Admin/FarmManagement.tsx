@@ -1,0 +1,964 @@
+
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { PageHeader } from "@/components/ui/page-header";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { DataTable } from "@/components/ui/data-table/data-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { farmsApi, usersApi, robotsApi } from "@/lib/api";
+import { Farm, User } from "@/lib/types";
+import { ColumnDef } from "@tanstack/react-table";
+import { format } from "date-fns";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+import { 
+  Leaf,
+  Plus, 
+  MoreVertical, 
+  Edit, 
+  Trash2, 
+  MapPin,
+  User as UserIcon,
+  Image,
+  Zap
+} from "lucide-react";
+
+// Validation schema for farm form
+const farmSchema = z.object({
+  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
+  location: z.string().min(5, { message: "Location must be at least 5 characters" }),
+  farmerId: z.string({ required_error: "Please select a farmer" }),
+  status: z.enum(["active", "inactive"]),
+  // Updated GPS coordinates validation to use number type directly
+  latitude: z.coerce.number(),
+  longitude: z.coerce.number(),
+  image: z.string().default("https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&h=600&fit=crop"),
+});
+
+type FarmFormValues = z.infer<typeof farmSchema>;
+
+const FarmManagement = () => {
+  const [activeTab, setActiveTab] = useState("grid-view");
+  const [farms, setFarms] = useState<Farm[]>([]);
+  const [farmers, setFarmers] = useState<User[]>([]);
+  const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Forms
+  const addForm = useForm<FarmFormValues>({
+    resolver: zodResolver(farmSchema),
+    defaultValues: {
+      name: "",
+      location: "",
+      farmerId: "",
+      status: "active",
+      latitude: 0,
+      longitude: 0,
+      image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&h=600&fit=crop",
+    },
+  });
+
+  const editForm = useForm<FarmFormValues>({
+    resolver: zodResolver(farmSchema),
+    defaultValues: {
+      name: "",
+      location: "",
+      farmerId: "",
+      status: "active",
+      latitude: 0,
+      longitude: 0,
+      image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&h=600&fit=crop",
+    },
+  });
+
+  // Set edit form values when a farm is selected
+  useEffect(() => {
+    if (selectedFarm) {
+      editForm.reset({
+        name: selectedFarm.name,
+        location: selectedFarm.location,
+        farmerId: selectedFarm.farmerId,
+        status: selectedFarm.status,
+        latitude: selectedFarm.gpsCoordinates.latitude,
+        longitude: selectedFarm.gpsCoordinates.longitude,
+        image: selectedFarm.image,
+      });
+    }
+  }, [selectedFarm, editForm]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [farmsData, farmersData] = await Promise.all([
+        farmsApi.getAll(),
+        usersApi.getByRole("farmer"),
+      ]);
+      
+      setFarms(farmsData);
+      setFarmers(farmersData.filter(farmer => farmer.status === "active"));
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateFarm = async (values: FarmFormValues) => {
+    try {
+      setLoading(true);
+      
+      // Get farmer name
+      const farmer = farmers.find(f => f.id === values.farmerId);
+      const farmerName = farmer ? `${farmer.firstName} ${farmer.lastName}` : "Unknown";
+      
+      const farmData = {
+        name: values.name,
+        location: values.location,
+        gpsCoordinates: {
+          latitude: values.latitude,
+          longitude: values.longitude,
+        },
+        farmerId: values.farmerId,
+        farmerName: farmerName,
+        status: values.status,
+        image: values.image,
+        robotCount: 0, // Initially zero robots
+      };
+      
+      const newFarm = await farmsApi.create(farmData);
+      setFarms([...farms, newFarm]);
+      setIsAddDialogOpen(false);
+      addForm.reset();
+      
+      toast.success(`Farm ${newFarm.name} added successfully`);
+    } catch (error) {
+      console.error("Error creating farm:", error);
+      toast.error("Failed to create farm");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateFarm = async (values: FarmFormValues) => {
+    if (!selectedFarm) return;
+
+    try {
+      setLoading(true);
+      
+      // Get farmer name
+      const farmer = farmers.find(f => f.id === values.farmerId);
+      const farmerName = farmer ? `${farmer.firstName} ${farmer.lastName}` : "Unknown";
+      
+      const updateData = {
+        name: values.name,
+        location: values.location,
+        gpsCoordinates: {
+          latitude: values.latitude,
+          longitude: values.longitude,
+        },
+        farmerId: values.farmerId,
+        farmerName: farmerName,
+        status: values.status,
+        image: values.image,
+      };
+      
+      const updatedFarm = await farmsApi.update(selectedFarm.id, updateData);
+      
+      setFarms(farms.map(farm => 
+        farm.id === selectedFarm.id ? updatedFarm : farm
+      ));
+      
+      setIsEditDialogOpen(false);
+      toast.success(`Farm ${updatedFarm.name} updated successfully`);
+    } catch (error) {
+      console.error("Error updating farm:", error);
+      toast.error("Failed to update farm");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteConfirmation = () => {
+    if (!selectedFarm) return;
+    setIsDeleteAlertOpen(true);
+  };
+
+  const handleDeleteFarm = async () => {
+    if (!selectedFarm) return;
+
+    try {
+      setLoading(true);
+      await farmsApi.delete(selectedFarm.id);
+      
+      setFarms(farms.filter(farm => farm.id !== selectedFarm.id));
+      
+      setIsDeleteDialogOpen(false);
+      setIsDeleteAlertOpen(false);
+      toast.success(`Farm ${selectedFarm.name} deleted successfully`);
+    } catch (error) {
+      console.error("Error deleting farm:", error);
+      toast.error("Failed to delete farm");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Simulate getting the current location
+  const handleGetCurrentLocation = () => {
+    // In a real app, you would use the browser's Geolocation API
+    // For demo purposes, let's just set some example coordinates
+    const demoCoordinates = {
+      latitude: 38.5025 + (Math.random() * 2 - 1),
+      longitude: -122.2654 + (Math.random() * 2 - 1),
+    };
+    
+    const form = isAddDialogOpen ? addForm : editForm;
+    form.setValue("latitude", demoCoordinates.latitude);
+    form.setValue("longitude", demoCoordinates.longitude);
+    
+    toast.success("GPS coordinates updated");
+  };
+
+  // Table columns
+  const columns: ColumnDef<Farm>[] = [
+    {
+      accessorKey: "name",
+      header: "Farm Name",
+      cell: ({ row }) => (
+        <div className="font-medium">{row.original.name}</div>
+      ),
+    },
+    {
+      accessorKey: "location",
+      header: "Location",
+      cell: ({ row }) => row.original.location,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.original.status;
+        return (
+          <StatusBadge 
+            variant={status === "active" ? "active" : "rejected"}
+          >
+            {status === "active" ? "Active" : "Inactive"}
+          </StatusBadge>
+        );
+      },
+    },
+    {
+      accessorKey: "farmerName",
+      header: "Owner",
+      cell: ({ row }) => row.original.farmerName,
+    },
+    {
+      accessorKey: "robotCount",
+      header: "Robots",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-1">
+          <Zap size={14} className="text-primary" />
+          <span>{row.original.robotCount}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created At",
+      cell: ({ row }) => {
+        try {
+          return format(new Date(row.original.createdAt), "MMM d, yyyy");
+        } catch (e) {
+          return row.original.createdAt;
+        }
+      },
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="ml-auto">
+                <MoreVertical size={16} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-white border border-soil-200 shadow-md">
+              <DropdownMenuItem 
+                onClick={() => {
+                  setSelectedFarm(row.original);
+                  setIsEditDialogOpen(true);
+                }}
+                className="flex items-center gap-2 text-soil-700 cursor-pointer"
+              >
+                <Edit size={14} /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => {
+                  setSelectedFarm(row.original);
+                  setIsDeleteDialogOpen(true);
+                }}
+                className="flex items-center gap-2 text-error cursor-pointer"
+              >
+                <Trash2 size={14} /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader 
+        title="Farm Management" 
+        description="Manage your farms and assign robots to them."
+      >
+        <Button 
+          onClick={() => {
+            addForm.reset();
+            setIsAddDialogOpen(true);
+          }}
+          className="flex items-center gap-1"
+        >
+          <Leaf size={16} />
+          <span>Add Farm</span>
+        </Button>
+      </PageHeader>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="bg-soil-100">
+          <TabsTrigger value="grid-view">Card View</TabsTrigger>
+          <TabsTrigger value="table-view">Table View</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="grid-view" className="space-y-4">
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="border-soil-200 glass-card">
+                  <CardContent className="p-0">
+                    <div className="h-48 animate-pulse bg-soil-100 rounded-t-md"></div>
+                    <div className="p-4">
+                      <div className="h-5 w-32 animate-pulse bg-soil-100 rounded-md mb-2"></div>
+                      <div className="h-4 w-48 animate-pulse bg-soil-100 rounded-md"></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : farms.length === 0 ? (
+            <Card className="border-soil-200 glass-card">
+              <CardContent className="p-6">
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Leaf size={48} className="text-soil-400 mb-4" />
+                  <h3 className="text-xl font-medium text-soil-700 mb-2">No Farms Found</h3>
+                  <p className="text-soil-500 max-w-md">
+                    You haven't added any farms yet. Click the "Add Farm" button to get started.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <AnimatePresence>
+                {farms.map((farm) => (
+                  <motion.div
+                    key={farm.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Card className="border border-soil-200 overflow-hidden h-full glass-card">
+                      <div className="h-48 relative">
+                        <img 
+                          src={farm.image} 
+                          alt={farm.name} 
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute top-4 right-4">
+                          <StatusBadge 
+                            variant={farm.status === "active" ? "active" : "rejected"}
+                          >
+                            {farm.status === "active" ? "Active" : "Inactive"}
+                          </StatusBadge>
+                        </div>
+                      </div>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg font-medium">
+                          {farm.name}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-1">
+                          <MapPin size={14} className="text-soil-500" />
+                          {farm.location}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pb-3">
+                        <div className="space-y-4">
+                          <Separator className="bg-soil-100" />
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-start gap-2">
+                              <UserIcon size={16} className="text-soil-500 mt-0.5" />
+                              <div>
+                                <div className="text-sm font-medium">Farm Owner</div>
+                                <div className="text-xs text-soil-500">{farm.farmerName}</div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-start gap-2">
+                              <Zap size={16} className="text-soil-500 mt-0.5" />
+                              <div>
+                                <div className="text-sm font-medium">Robots Deployed</div>
+                                <div className="text-xs text-soil-500">{farm.robotCount} robots</div>
+                              </div>
+                            </div>
+                            
+                            <div className="text-xs text-soil-500 mt-2">
+                              Created: {format(new Date(farm.createdAt), "MMMM d, yyyy")}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                      <CardFooter className="flex justify-end gap-2 pt-2 border-t border-soil-100">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-soil-700"
+                          onClick={() => {
+                            setSelectedFarm(farm);
+                            setIsEditDialogOpen(true);
+                          }}
+                        >
+                          <Edit size={14} className="mr-1" /> Edit
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-error"
+                          onClick={() => {
+                            setSelectedFarm(farm);
+                            setIsDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 size={14} className="mr-1" /> Delete
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="table-view" className="space-y-4">
+          <Card className="border-soil-200 glass-card">
+            <CardContent className="p-6">
+              <DataTable 
+                columns={columns} 
+                data={farms} 
+                searchPlaceholder="Search farms..." 
+                searchKey="name" 
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Add Farm Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] glass-card">
+          <DialogHeader>
+            <DialogTitle>Add New Farm</DialogTitle>
+            <DialogDescription>
+              Fill in the details to add a new farm to the system.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...addForm}>
+            <form onSubmit={addForm.handleSubmit(handleCreateFarm)} className="space-y-5">
+              <FormField
+                control={addForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farm Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter farm name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={addForm.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Enter farm location" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={addForm.control}
+                  name="latitude"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Latitude</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" placeholder="Enter latitude" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={addForm.control}
+                  name="longitude"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Longitude</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" placeholder="Enter longitude" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <div className="flex justify-end">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleGetCurrentLocation}
+                  className="border-soil-200"
+                >
+                  <MapPin size={14} className="mr-1" /> Get Current Location
+                </Button>
+              </div>
+              
+              <FormField
+                control={addForm.control}
+                name="farmerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farm Owner</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a farmer" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {farmers.map((farmer) => (
+                          <SelectItem key={farmer.id} value={farmer.id}>
+                            {farmer.firstName} {farmer.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={addForm.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={addForm.control}
+                name="image"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farm Image URL</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter image URL" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Enter a URL for the farm image or leave default.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <DialogFooter>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsAddDialogOpen(false)}
+                  className="border-soil-200"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Adding..." : "Add Farm"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Farm Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] glass-card">
+          <DialogHeader>
+            <DialogTitle>Edit Farm</DialogTitle>
+            <DialogDescription>
+              Update farm information and settings.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(handleUpdateFarm)} className="space-y-5">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farm Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter farm name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={editForm.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Enter farm location" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="latitude"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Latitude</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" placeholder="Enter latitude" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={editForm.control}
+                  name="longitude"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Longitude</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" placeholder="Enter longitude" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <div className="flex justify-end">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleGetCurrentLocation}
+                  className="border-soil-200"
+                >
+                  <MapPin size={14} className="mr-1" /> Get Current Location
+                </Button>
+              </div>
+              
+              <FormField
+                control={editForm.control}
+                name="farmerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farm Owner</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a farmer" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {farmers.map((farmer) => (
+                          <SelectItem key={farmer.id} value={farmer.id}>
+                            {farmer.firstName} {farmer.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={editForm.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={editForm.control}
+                name="image"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farm Image URL</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter image URL" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Enter a URL for the farm image.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <DialogFooter>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsEditDialogOpen(false)}
+                  className="border-soil-200"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Updating..." : "Update Farm"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Farm Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] glass-card">
+          <DialogHeader>
+            <DialogTitle>Delete Farm</DialogTitle>
+            <DialogDescription>
+              Review the farm details before deletion.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedFarm && (
+            <div className="p-4 mb-4 border border-soil-200 rounded-md bg-soil-50">
+              <div className="flex items-center gap-3">
+                <img 
+                  src={selectedFarm.image} 
+                  alt={selectedFarm.name} 
+                  className="w-16 h-16 object-cover rounded-md border border-soil-200"
+                />
+                <div>
+                  <div className="font-medium text-lg">{selectedFarm.name}</div>
+                  <div className="text-sm text-soil-500">{selectedFarm.location}</div>
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-soil-200 grid grid-cols-2 gap-2 text-sm">
+                <div className="text-soil-600">Status:</div>
+                <div className="capitalize">{selectedFarm.status}</div>
+                <div className="text-soil-600">Owner:</div>
+                <div>{selectedFarm.farmerName}</div>
+                <div className="text-soil-600">Robots:</div>
+                <div>{selectedFarm.robotCount} robots deployed</div>
+                <div className="text-soil-600">Created:</div>
+                <div>{format(new Date(selectedFarm.createdAt), "MMM d, yyyy")}</div>
+              </div>
+              
+              {selectedFarm.robotCount > 0 && (
+                <div className="mt-4 p-3 bg-warning/10 text-warning rounded-md text-sm">
+                  Note: This farm has {selectedFarm.robotCount} robots assigned to it.
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteDialogOpen(false)}
+              className="border-soil-200"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteConfirmation}
+              disabled={loading}
+            >
+              {loading ? "Processing..." : "Proceed to Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Alert */}
+      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
+        <AlertDialogContent className="glass-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedFarm?.robotCount ? (
+                <>
+                  <p className="mb-2">
+                    This farm has <strong>{selectedFarm.robotCount} robots</strong> assigned to it. Deleting this farm will:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 mb-2">
+                    <li>Remove all robot assignments from this farm</li>
+                    <li>Set these robots as unassigned</li>
+                    <li>Permanently delete the farm record</li>
+                  </ul>
+                  <p>This action cannot be undone.</p>
+                </>
+              ) : (
+                "Are you sure you want to delete this farm? This action cannot be undone."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-soil-200">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteFarm}
+              className="bg-error hover:bg-error/90"
+            >
+              Yes, Delete Farm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+};
+
+export default FarmManagement;
