@@ -1,8 +1,13 @@
-
 import { motion } from 'framer-motion';
 import { Farm, Fruit } from '@/pages/Farmer/Farmer';
-import { ArrowLeft, Droplet, Leaf, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Droplet, Leaf, AlertTriangle, Download } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { SoilHealthCard } from "@/components/Farmer/SoilHealthCard";
+import { Page, Text, View, Document, StyleSheet, PDFDownloadLink, Image } from "@react-pdf/renderer";
+import { toast } from 'sonner';
+import React from "react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 interface FruitDashboardProps {
   farm: Farm;
@@ -10,7 +15,114 @@ interface FruitDashboardProps {
   onBack: () => void;
 }
 
+const logo = "logoVision.png"; // Make sure the path is correct
+
+// PDF Document Component (used for React PDF renderer)
+const MyDocument = ({ farm }) => (
+  <Document>
+    <Page style={styles.page}>
+      <View style={styles.header}>
+        <Image src={logo} style={styles.logo} />
+        <Text style={styles.title}>AI Analysis Report</Text>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Farm Information</Text>
+        <View style={styles.infoRow}><Text style={styles.label}>🌾 Name:</Text><Text>{farm.name}</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}>📍 Location:</Text><Text>{farm.location}</Text></View>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Farm Status</Text>
+        <View style={styles.infoRow}><Text style={styles.label}>🌡 Temperature:</Text><Text>{farm.temperature}°C</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}>💧 Humidity:</Text><Text>{farm.humidity}%</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}>🌱 Soil pH:</Text><Text>6.5 (Optimal)</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}>🩺 Plant Health:</Text><Text>Good ✅</Text></View>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>AI Recommendations</Text>
+        <Text style={styles.recommendation}>✅ Optimal harvest time: In 5-7 days.</Text>
+        <Text style={styles.recommendation}>✅ Maintain current irrigation schedule.</Text>
+      </View>
+    </Page>
+  </Document>
+);
+
+const styles = StyleSheet.create({
+  page: {
+    padding: 40,
+    backgroundColor: "#fff",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 30,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
+    paddingBottom: 10,
+  },
+  logo: {
+    width: 50,
+    height: 50,
+    marginRight: 15,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
+  },
+  section: {
+    marginBottom: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  label: {
+    fontWeight: "bold",
+  },
+  recommendation: {
+    fontSize: 12,
+    marginTop: 5,
+  },
+});
+
+// FruitDashboard Component (with integration of FarmReport)
 const FruitDashboard = ({ farm, fruit, onBack }: FruitDashboardProps) => {
+  const printRef = React.useRef(null);
+
+  const handleDownloadPdf = async () => {
+    const element = printRef.current;
+    if (!element) {
+      return;
+    }
+
+    const canvas = await html2canvas(element, {
+      scale: 2,
+    });
+    const data = canvas.toDataURL("image/png");
+
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "px",
+      format: "a4",
+    });
+
+    const imgProperties = pdf.getImageProperties(data);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProperties.height * pdfWidth) / imgProperties.width;
+
+    pdf.addImage(data, "PNG", 0, 0, pdfWidth, pdfHeight);
+    pdf.save("farm_report.pdf");
+  };
+
   // Sample data for the chart
   const data = [
     { name: 'Week 1', ripeness: 20 },
@@ -40,7 +152,20 @@ const FruitDashboard = ({ farm, fruit, onBack }: FruitDashboardProps) => {
             <h1 className="text-2xl font-semibold text-soil-900">{fruit.name}</h1>
           </div>
         </div>
-
+   {/* PDF Download Link */}
+   <div className="flex justify-end">
+  <PDFDownloadLink document={<MyDocument farm={farm} />} fileName="AI_Analysis_Report.pdf">
+    {({ loading }) => (
+      <button
+        className="px-4 py-2 bg-soil-600 text-white rounded-lg hover:bg-soil-700 flex items-center gap-2 mt-4"
+        onClick={() => toast.success("PDF Generated Successfully!")}
+      >
+        <Download className="w-4 h-4" />
+        {loading ? "Generating..." : "Generate AI Report"}
+      </button>
+    )}
+  </PDFDownloadLink>
+</div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div className="bg-white/70 backdrop-blur-sm rounded-xl overflow-hidden shadow-sm border border-soil-200">
@@ -61,6 +186,10 @@ const FruitDashboard = ({ farm, fruit, onBack }: FruitDashboardProps) => {
                 <p className="text-3xl font-semibold text-soil-900">{fruit.ripeness}%</p>
               </div>
             </div>
+             <div className="flex flex-col gap-8">
+                      
+                      <SoilHealthCard />
+                    </div>
 
             <div className="bg-white/70 backdrop-blur-sm p-6 rounded-xl shadow-sm space-y-4 border border-soil-200">
               <h3 className="text-xl font-semibold text-soil-900">Status Indicators</h3>

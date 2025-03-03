@@ -47,6 +47,8 @@ const EngineerForm = () => {
     },
   });
 
+  
+        
   const onSubmit = async (data: FormValues) => {
     try {
       const response = await fetch("http://localhost:8081/api/register", {
@@ -54,44 +56,40 @@ const EngineerForm = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, status: "pending" }), // Ajouter le statut
       });
-
-      // Ensure response is valid JSON
+  
       const result = await response.json();
-
+  
       if (response.ok) {
-        // ✅ Extract user data correctly
-        const user = result.data?.user;
-        const token = result.data?.token;
-        
-
-        window.localStorage.setItem("loggedIn", "true");
-         window.localStorage.setItem("authToken", token);
-         window.localStorage.setItem("userRole", "engineer"); // Store user role
-
         toast({
-          title: "Success",
-          description: result.message || "User has been created successfully",
+          title: "Account Created",
+          description: "Your account is pending approval by an admin.",
         });
-
+  
         form.reset();
-        navigate("/engineer"); // ✅ Redirect after successful submission
+        navigate("/login");// Rediriger vers la page de connexion
+        
+         window.localStorage.setItem("loggedIn", "true");
+        // window.localStorage.setItem("authToken", token);
+         window.localStorage.setItem("userRole", "engineer"); // Store user role
       } else {
         toast({
           title: "Error",
-          description: result.message || "Failed to create user. Please try again.",
+          description: result.message || "Registration failed. Try again.",
           variant: "destructive",
         });
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to connect to the server. Please try again.",
+        description: "Server connection failed.",
         variant: "destructive",
       });
     }
   };
+  
+
 
   return (
     <section className="max-w-xl mx-auto p-6 bg-white shadow-lg rounded-lg">

@@ -7,6 +7,7 @@ import {
   mockDashboardStats, 
   fetchWithDelay 
 } from "./mock-data";
+import axios from 'axios'; 
 import { Robot, Farm, User, SensorData, DashboardStats } from "./types";
 import { toast } from "sonner";
 
@@ -61,7 +62,7 @@ export const robotsApi = {
       const robot = mockRobots.find(r => r.id === robotId);
       if (robot) {
         robot.engineerId = engineerId;
-        robot.engineerName = `${engineer.firstName} ${engineer.lastName}`;
+        robot.engineerName = `${engineer.first_name} ${engineer.last_name}`;
       }
     });
     
@@ -124,13 +125,36 @@ export const farmsApi = {
 
 // API functions for Users
 export const usersApi = {
-  getAll: () => fetchWithDelay(mockUsers),
+ 
+    // 🔹 Récupérer tous les utilisateurs
+    getAll: async () => {
+      const response = await axios.get(`http://localhost:8081/users/all`, { withCredentials: true });
+      return response.data;
+    },
   
-  getByRole: (role: User["role"]) => 
-    fetchWithDelay(mockUsers.filter(user => user.role === role)),
+    // 🔹 Récupérer les utilisateurs par rôle (ex: "engineer", "farmer", "admin")
+    getByRole: async (role: string) => {
+      const response = await axios.get(`http://localhost:8081/users/role/${role}`, { withCredentials: true });
+      return response.data;
+    },
   
-  getByStatus: (status: User["status"]) => 
-    fetchWithDelay(mockUsers.filter(user => user.status === status)),
+    // 🔹 Récupérer uniquement les ingénieurs en attente
+    getPendingEngineers: async () => {
+      const response = await axios.get(`http://localhost:8081/users/pending-engineers`, { withCredentials: true });
+      return response.data;
+    },
+  
+    // 🔹 Approuver un ingénieur
+    approveEngineer: async (id: string) => {
+      const response = await axios.put(`http://localhost:8081/users/approve/${id}`, {}, { withCredentials: true });
+      return response.data;
+    },
+  
+    // 🔹 Rejeter un ingénieur
+    rejectEngineer: async (id: string) => {
+      const response = await axios.put(`http://localhost:8081/users/reject/${id}`, {}, { withCredentials: true });
+      return response.data;
+    },
   
   getById: (id: string) => 
     fetchWithDelay(mockUsers.find(user => user.id === id)),
@@ -261,35 +285,16 @@ export const sensorDataApi = {
     );
   }
 };
-
-// Dashboard Stats API
 export const dashboardApi = {
-  getStats: () => fetchWithDelay(mockDashboardStats, 800),
-  
-  getRobotDistributionByFarm: () => {
-    const distribution = mockFarms.map(farm => ({
-      name: farm.name,
-      value: farm.robotCount
-    }));
-    
-    return fetchWithDelay(distribution, 800);
+  getStats: async () => {
+    const response = await fetch(`http://localhost:8081/api/stats`);
+    return response.json();
   },
-  
-  getRobotStatusOverview: () => {
-    return fetchWithDelay([
-      { name: "Available", value: mockDashboardStats.robotStatusDistribution.available },
-      { name: "In Use", value: mockDashboardStats.robotStatusDistribution.inUse },
-      { name: "Maintenance", value: mockDashboardStats.robotStatusDistribution.maintenance }
-    ], 800);
+
+  getRobotDistributionByFarm: async () => {
+    const response = await fetch(`http://localhost:8081/api/robot-distribution`);
+    return response.json();
   },
+
   
-  getFarmStatusDistribution: () => {
-    const active = mockFarms.filter(farm => farm.status === "active").length;
-    const inactive = mockFarms.filter(farm => farm.status === "inactive").length;
-    
-    return fetchWithDelay([
-      { name: "Active", value: active },
-      { name: "Inactive", value: inactive }
-    ], 800);
-  }
 };

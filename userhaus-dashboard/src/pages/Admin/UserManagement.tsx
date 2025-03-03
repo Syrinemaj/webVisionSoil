@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import axios from "axios";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,23 +42,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { usersApi } from "@/lib/api";
 import { User } from "@/lib/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
-import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Users, Plus, MoreVertical, Edit, Trash2, CheckCircle, XCircle, UserPlus, Mail, Phone } from "lucide-react";
 
 // Validation schema for user form
 const userSchema = z.object({
-  firstName: z.string().min(2, { message: "First name must be at least 2 characters" }),
-  lastName: z.string().min(2, { message: "Last name must be at least 2 characters" }),
+  first_name: z.string().min(2, { message: "First name must be at least 2 characters" }),
+  last_name: z.string().min(2, { message: "Last name must be at least 2 characters" }),
   email: z.string().email({ message: "Please enter a valid email address" }),
-  phone: z.string().min(10, { message: "Phone number must be at least 10 characters" }),
+  phone_number: z.string().min(8, { message: "Phone number must be at least 8 characters" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
   role: z.enum(["admin", "engineer", "farmer"]),
-  status: z.enum(["active", "pending_approval", "rejected"]),
+  status: z.enum(["pending", "approved", "rejected"]),
 });
 
 type UserFormValues = z.infer<typeof userSchema>;
@@ -76,26 +75,26 @@ const UserManagement = () => {
   const addForm = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      firstName: "",
-      lastName: "",
+      first_name: "",
+      last_name: "",
       email: "",
-      phone: "",
+      phone_number: "",
       password: "",
       role: "farmer",
-      status: "active",
+      status: "approved",
     },
   });
 
   const editForm = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      firstName: "",
-      lastName: "",
+      first_name: "",
+      last_name: "",
       email: "",
-      phone: "",
+      phone_number: "",
       password: "",
       role: "farmer",
-      status: "active",
+      status: "approved",
     },
   });
 
@@ -103,10 +102,10 @@ const UserManagement = () => {
   useEffect(() => {
     if (selectedUser) {
       editForm.reset({
-        firstName: selectedUser.firstName,
-        lastName: selectedUser.lastName,
+        first_name: selectedUser.first_name,
+        last_name: selectedUser.last_name,
         email: selectedUser.email,
-        phone: selectedUser.phone,
+        phone_number: selectedUser.phone_number,
         password: "******", // Placeholder for display
         role: selectedUser.role,
         status: selectedUser.status,
@@ -114,62 +113,86 @@ const UserManagement = () => {
     }
   }, [selectedUser, editForm]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+ 
+// Function to fetch users
+const fetchUsers = async () => {
+  try {
+    const usersResponse = await axios.get("http://localhost:8081/api/users");
+    setUsers(usersResponse.data);  // Set users state with fetched data
+    console.log("Fetched users:", usersResponse.data);
+  } catch (error) {
+    console.error("Error fetching users:", error.response ? error.response.data : error.message);
+    toast.error("Failed to load users");
+  }
+};
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const usersData = await usersApi.getAll();
-      setUsers(usersData);
-      
-      const pendingEngineersData = await usersApi.getByRole("engineer");
-      setPendingEngineers(
-        pendingEngineersData.filter(engineer => engineer.status === "pending_approval")
-      );
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      toast.error("Failed to load users");
-    } finally {
-      setLoading(false);
-    }
-  };
+// Function to fetch pending engineers
+const fetchPendingEngineers = async () => {
+  try {
+    const engineersResponse = await axios.get("http://localhost:8081/api/pending-engineers");
+    setPendingEngineers(engineersResponse.data);  // Set pending engineers state with fetched data
+    console.log("Fetched pending engineers:", engineersResponse.data);
+  } catch (error) {
+    console.error("Error fetching pending engineers:", error.response ? error.response.data : error.message);
+    toast.error("Failed to load pending engineers");
+  }
+};
 
-  const handleCreateUser = async (values: UserFormValues) => {
-    try {
-      setLoading(true);
-      
-      // Make sure all required fields are present and not optional
-      const userData: Omit<User, "id" | "createdAt"> = {
-        firstName: values.firstName,
-        lastName: values.lastName,
-        email: values.email,
-        phone: values.phone,
-        role: values.role,
-        // Override status for engineers to be pending_approval
-        status: values.role === "engineer" ? "pending_approval" : values.status,
-        profileImage: `https://randomuser.me/api/portraits/${Math.random() > 0.5 ? 'men' : 'women'}/${Math.floor(Math.random() * 100)}.jpg`,
-      };
-      
-      const newUser = await usersApi.create(userData);
-      setUsers([...users, newUser]);
-      setIsAddDialogOpen(false);
-      addForm.reset();
-      
-      toast.success("User created successfully");
-      
-      // If it's an engineer, we need to update the pending engineers list
-      if (newUser.role === "engineer" && newUser.status === "pending_approval") {
-        setPendingEngineers([...pendingEngineers, newUser]);
-      }
-    } catch (error) {
-      console.error("Error creating user:", error);
-      toast.error("Failed to create user");
-    } finally {
-      setLoading(false);
-    }
-  };
+// Main function to fetch data
+const fetchData = async () => {
+  setLoading(true);
+  try {
+    // Fetch users and pending engineers separately
+    await Promise.all([
+      fetchUsers(),
+      fetchPendingEngineers(),
+    ]);
+  } catch (error) {
+    console.error("Error during data fetching:", error);
+    toast.error("Failed to load data");
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Fetch data on component mount
+useEffect(() => {
+  fetchData();
+}, []);
+
+const handleCreateUser = async (values: UserFormValues) => {
+  try {
+    setLoading(true);
+
+    // Check what you're sending
+    console.log("User data being sent:", values);
+
+    const userData: Omit<UserFormValues, "id" | "createdAt"> = {
+      first_name: values.first_name,
+      last_name: values.last_name,
+      email: values.email,
+      phone_number: values.phone_number,
+      password: values.password,
+      role: values.role,
+      status: values.role === "engineer" ? "pending" : values.status,
+    };
+
+    const response = await axios.post("http://localhost:8081/api/create", userData);
+    const newUser = response.data;
+
+    setUsers([...users, newUser]);
+    setIsAddDialogOpen(false);
+    addForm.reset();
+
+    toast.success("User created successfully");
+  } catch (error) {
+    console.error("Error creating user:", error);
+    toast.error("Failed to create user");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleUpdateUser = async (values: UserFormValues) => {
     if (!selectedUser) return;
@@ -178,21 +201,24 @@ const UserManagement = () => {
       setLoading(true);
       
       // Only update password if it's changed
-      const updateData: Partial<Omit<User, "id" | "createdAt">> = {
-        firstName: values.firstName,
-        lastName: values.lastName,
+      const updateData: Partial<Omit<UserFormValues, "id" | "createdAt">> = {
+        first_name: values.first_name,
+        last_name: values.last_name,
         email: values.email,
-        phone: values.phone,
+        phone_number: values.phone_number,
         role: values.role,
         status: values.status,
       };
       
       // Add password only if it's changed
       if (values.password !== "******") {
-        (updateData as any).password = values.password;
+        updateData.password = values.password;
       }
       
-      const updatedUser = await usersApi.update(selectedUser.id, updateData);
+      const response = await axios.put(`http://localhost:8081/api/users/update/${selectedUser.id}`, updateData);
+      console.log("Updated user from backend:", response.data);
+      console.log(response.data)
+      const updatedUser = response.data;
       
       setUsers(users.map(user => 
         user.id === selectedUser.id ? updatedUser : user
@@ -200,9 +226,13 @@ const UserManagement = () => {
       
       // Update pending engineers list if needed
       if (updatedUser.role === "engineer") {
-        if (updatedUser.status === "pending_approval") {
+        if (updatedUser.status === "pending") {
           if (!pendingEngineers.some(eng => eng.id === updatedUser.id)) {
             setPendingEngineers([...pendingEngineers, updatedUser]);
+          } else {
+            setPendingEngineers(pendingEngineers.map(eng => 
+              eng.id === updatedUser.id ? updatedUser : eng
+            ));
           }
         } else {
           setPendingEngineers(pendingEngineers.filter(eng => eng.id !== updatedUser.id));
@@ -224,7 +254,7 @@ const UserManagement = () => {
 
     try {
       setLoading(true);
-      await usersApi.delete(selectedUser.id);
+      await axios.delete(`http://localhost:8081/api/users/${selectedUser.id}`);
       
       setUsers(users.filter(user => user.id !== selectedUser.id));
       setPendingEngineers(pendingEngineers.filter(eng => eng.id !== selectedUser.id));
@@ -242,7 +272,8 @@ const UserManagement = () => {
   const handleApproveEngineer = async (id: string) => {
     try {
       setLoading(true);
-      const approvedEngineer = await usersApi.approveEngineer(id);
+      const response = await axios.put(`http://localhost:8081/users/approve/${id}`);
+      const approvedEngineer = response.data;
       
       // Update both lists
       setUsers(users.map(user => 
@@ -250,7 +281,7 @@ const UserManagement = () => {
       ));
       setPendingEngineers(pendingEngineers.filter(eng => eng.id !== id));
       
-      toast.success(`Engineer ${approvedEngineer.firstName} ${approvedEngineer.lastName} approved successfully`);
+      toast.success(`Engineer ${approvedEngineer.first_name} ${approvedEngineer.last_name} approved successfully`);
     } catch (error) {
       console.error("Error approving engineer:", error);
       toast.error("Failed to approve engineer");
@@ -262,7 +293,8 @@ const UserManagement = () => {
   const handleRejectEngineer = async (id: string) => {
     try {
       setLoading(true);
-      const rejectedEngineer = await usersApi.rejectEngineer(id);
+      const response = await axios.put(`http://localhost:8081/users/reject/${id}`);
+      const rejectedEngineer = response.data;
       
       // Update both lists
       setUsers(users.map(user => 
@@ -270,7 +302,7 @@ const UserManagement = () => {
       ));
       setPendingEngineers(pendingEngineers.filter(eng => eng.id !== id));
       
-      toast.success(`Engineer ${rejectedEngineer.firstName} ${rejectedEngineer.lastName} rejected`);
+      toast.success(`Engineer ${rejectedEngineer.first_name} ${rejectedEngineer.last_name} rejected`);
     } catch (error) {
       console.error("Error rejecting engineer:", error);
       toast.error("Failed to reject engineer");
@@ -287,12 +319,12 @@ const UserManagement = () => {
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <img 
-            src={row.original.profileImage} 
-            alt={`${row.original.firstName} ${row.original.lastName}`} 
+          src="/user.jpg" 
+            alt={`${row.original.first_name} ${row.original.last_name}`} 
             className="w-8 h-8 rounded-full object-cover border border-soil-200"
           />
           <div>
-            <div className="font-medium">{row.original.firstName} {row.original.lastName}</div>
+            <div className="font-medium">{row.original.first_name} {row.original.last_name}</div>
             <div className="text-xs text-soil-500">{row.original.email}</div>
           </div>
         </div>
@@ -316,22 +348,22 @@ const UserManagement = () => {
         return (
           <StatusBadge 
             variant={
-              status === "active" ? "active" : 
-              status === "pending_approval" ? "pending" : 
+              status === "approved" ? "active" : 
+              status === "pending" ? "pending" : 
               "rejected"
             }
           >
-            {status === "active" ? "Active" : 
-             status === "pending_approval" ? "Pending Approval" : 
+            {status === "approved" ? "Active" : 
+             status === "pending" ? "Pending Approval" : 
              "Rejected"}
           </StatusBadge>
         );
       },
     },
     {
-      accessorKey: "phone",
+      accessorKey: "phone_number",
       header: "Phone",
-      cell: ({ row }) => row.original.phone,
+      cell: ({ row }) => row.original.phone_number,
     },
     {
       accessorKey: "createdAt",
@@ -381,139 +413,124 @@ const UserManagement = () => {
   ];
 
   return (
-    <>
+    <div className="container px-4 py-8 mx-auto">
       <PageHeader 
         title="User Management" 
         description="Manage users, engineers, and farmers for your platform."
       >
         <Button 
-  onClick={() => {
-    addForm.reset();
-    setIsAddDialogOpen(true);
-  }}
-  className="flex items-center gap-1"
->
-  <UserPlus size={16} />
-  <span>Add User</span>
-</Button>
-
-      </PageHeader> 
+          onClick={() => {
+            addForm.reset();
+            setIsAddDialogOpen(true);
+          }}
+          className="flex items-center gap-1"
+        >
+          <UserPlus size={16} />
+          <span>Add User</span>
+        </Button>
+      </PageHeader>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-soil-100">
-          <TabsTrigger value="all-users">All Users</TabsTrigger>
-          <TabsTrigger value="pending-engineers" className="relative">
-            Pending Engineers
-            {pendingEngineers.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-error text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                {pendingEngineers.length}
-              </span>
+      <TabsList className="bg-soil-100">
+        <TabsTrigger value="all-users">All Users</TabsTrigger>
+        <TabsTrigger value="pending-engineers" className="relative">
+          Pending Engineers
+          {pendingEngineers.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-error text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+              {pendingEngineers.length}
+            </span>
+          )}
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="all-users" className="space-y-4">
+        <Card className="border-soil-200">
+          <CardContent className="p-6">
+            <DataTable 
+              columns={columns} 
+              data={users} 
+              searchPlaceholder="Search users..." 
+              searchKey="first_name" 
+            />
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="pending-engineers" className="space-y-4">
+        <Card className="border-soil-200">
+          <CardContent className="p-6">
+            {pendingEngineers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <Users size={48} className="text-soil-400 mb-4" />
+                <h3 className="text-xl font-medium text-soil-700 mb-2">No Pending Engineers</h3>
+                <p className="text-soil-500 max-w-md">
+                  There are no engineers waiting for approval at the moment.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {pendingEngineers.map((engineer) => (
+                  <div key={engineer.id} className="transition-all duration-300">
+                    <Card className="border border-soil-200 overflow-hidden">
+                      <CardHeader className="pb-2">
+                        <div className="flex justify-between">
+                          <div className="flex items-center gap-3">
+                            <img 
+                             src="/user.jpg"
+                              alt={`${engineer.first_name} ${engineer.last_name}`} 
+                              className="w-10 h-10 rounded-full object-cover border border-soil-200"
+                            />
+                            <div>
+                              <CardTitle className="text-lg font-medium">
+                                {engineer.first_name} {engineer.last_name}
+                              </CardTitle>
+                              <CardDescription>Engineer</CardDescription>
+                            </div>
+                          </div>
+                          <StatusBadge variant="pending">Pending Approval</StatusBadge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pb-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Mail size={14} className="text-soil-500" />
+                            <span className="text-sm">{engineer.email}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Phone size={14} className="text-soil-500" />
+                            <span className="text-sm">{engineer.phone_number}</span>
+                          </div>
+                         
+                        </div>
+                      </CardContent>
+                      <CardFooter className="flex justify-between pt-2 border-t border-soil-100">
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          className="w-[48%]"
+                          onClick={() => handleRejectEngineer(engineer.id)}
+                          disabled={loading}
+                        >
+                          <XCircle size={14} className="mr-1" /> Reject
+                        </Button>
+                        <Button 
+                          size="sm"
+                          className="w-[48%]"
+                          onClick={() => handleApproveEngineer(engineer.id)}
+                          disabled={loading}
+                        >
+                          <CheckCircle size={14} className="mr-1" /> Approve
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  </div>
+                ))}
+              </div>
             )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all-users" className="space-y-4">
-          <Card className="border-soil-200">
-            <CardContent className="p-6">
-              <DataTable 
-                columns={columns} 
-                data={users} 
-                searchPlaceholder="Search users..." 
-                searchKey="firstName" 
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pending-engineers" className="space-y-4">
-          <Card className="border-soil-200">
-            <CardContent className="p-6">
-              {pendingEngineers.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <Users size={48} className="text-soil-400 mb-4" />
-                  <h3 className="text-xl font-medium text-soil-700 mb-2">No Pending Engineers</h3>
-                  <p className="text-soil-500 max-w-md">
-                    There are no engineers waiting for approval at the moment.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <AnimatePresence>
-                    {pendingEngineers.map((engineer) => (
-                      <motion.div
-                        key={engineer.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <Card className="border border-soil-200 overflow-hidden">
-                          <CardHeader className="pb-2">
-                            <div className="flex justify-between">
-                              <div className="flex items-center gap-3">
-                                <img 
-                                  src={engineer.profileImage} 
-                                  alt={`${engineer.firstName} ${engineer.lastName}`} 
-                                  className="w-10 h-10 rounded-full object-cover border border-soil-200"
-                                />
-                                <div>
-                                  <CardTitle className="text-lg font-medium">
-                                    {engineer.firstName} {engineer.lastName}
-                                  </CardTitle>
-                                  <CardDescription>
-                                    Engineer
-                                  </CardDescription>
-                                </div>
-                              </div>
-                              <StatusBadge variant="pending">
-                                Pending Approval
-                              </StatusBadge>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="pb-3">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Mail size={14} className="text-soil-500" />
-                                <span className="text-sm">{engineer.email}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Phone size={14} className="text-soil-500" />
-                                <span className="text-sm">{engineer.phone}</span>
-                              </div>
-                              <div className="text-xs text-soil-500 mt-2">
-                                Joined {format(new Date(engineer.createdAt), "MMMM d, yyyy")}
-                              </div>
-                            </div>
-                          </CardContent>
-                          <CardFooter className="flex justify-between pt-2 border-t border-soil-100">
-                            <Button 
-                              variant="destructive" 
-                              size="sm"
-                              className="w-[48%]"
-                              onClick={() => handleRejectEngineer(engineer.id)}
-                              disabled={loading}
-                            >
-                              <XCircle size={14} className="mr-1" /> Reject
-                            </Button>
-                            <Button 
-                              size="sm"
-                              className="w-[48%]"
-                              onClick={() => handleApproveEngineer(engineer.id)}
-                              disabled={loading}
-                            >
-                              <CheckCircle size={14} className="mr-1" /> Approve
-                            </Button>
-                          </CardFooter>
-                        </Card>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
 
       {/* Add User Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -529,7 +546,7 @@ const UserManagement = () => {
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={addForm.control}
-                  name="firstName"
+                  name="first_name"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>First Name</FormLabel>
@@ -542,7 +559,7 @@ const UserManagement = () => {
                 />
                 <FormField
                   control={addForm.control}
-                  name="lastName"
+                  name="last_name"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Last Name</FormLabel>
@@ -571,7 +588,7 @@ const UserManagement = () => {
               
               <FormField
                 control={addForm.control}
-                name="phone"
+                name="phone_number"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Phone</FormLabel>
@@ -644,8 +661,8 @@ const UserManagement = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="pending_approval">Pending Approval</SelectItem>
+                          <SelectItem value="approved">Active</SelectItem>
+                          <SelectItem value="pending">Pending Approval</SelectItem>
                           <SelectItem value="rejected">Rejected</SelectItem>
                         </SelectContent>
                       </Select>
@@ -674,160 +691,126 @@ const UserManagement = () => {
       </Dialog>
 
       {/* Edit User Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
-              Update user information and settings.
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(handleUpdateUser)} className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={editForm.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>First Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="First name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Last Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Last name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              
-              <FormField
-                control={editForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Email address" type="email" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={editForm.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Phone number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={editForm.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Leave unchanged to keep current password" type="password" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Leave unchanged to keep current password.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={editForm.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Role</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="engineer">Engineer</SelectItem>
-                        <SelectItem value="farmer">Farmer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={editForm.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="pending_approval">Pending Approval</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsEditDialogOpen(false)}
-                  className="border-soil-200"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? "Updating..." : "Update User"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+  <DialogContent className="sm:max-w-[500px]">
+    <DialogHeader>
+      <DialogTitle>Edit User</DialogTitle>
+      <DialogDescription>
+        Update user information and settings.
+      </DialogDescription>
+    </DialogHeader>
 
+    {/* Charger les données utilisateur au chargement du formulaire */}
+    <Form {...editForm}>
+      <form onSubmit={editForm.handleSubmit(handleUpdateUser)} className="space-y-5">
+        <div className="grid grid-cols-2 gap-4">
+          {/* First Name */}
+          <FormField control={editForm.control} name="first_name" render={({ field }) => (
+            <FormItem>
+              <FormLabel>First Name</FormLabel>
+              <FormControl>
+                <Input placeholder="First name" {...field} defaultValue={selectedUser?.first_name} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Last Name */}
+          <FormField control={editForm.control} name="last_name" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Last Name</FormLabel>
+              <FormControl>
+                <Input placeholder="Last name" {...field} defaultValue={selectedUser?.last_name} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
+
+        {/* Email */}
+        <FormField control={editForm.control} name="email" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Email</FormLabel>
+            <FormControl>
+              <Input placeholder="Email address" type="email" {...field} defaultValue={selectedUser?.email} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        {/* Phone Number */}
+        <FormField control={editForm.control} name="phone_number" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Phone</FormLabel>
+            <FormControl>
+              <Input placeholder="Phone number" {...field} defaultValue={selectedUser?.phone_number} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        {/* Role Selection */}
+        <FormField control={editForm.control} name="role" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Role</FormLabel>
+            <Select defaultValue={selectedUser?.role} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="engineer">Engineer</SelectItem>
+                <SelectItem value="farmer">Farmer</SelectItem>
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        {/* Status Selection */}
+        <FormField control={editForm.control} name="status" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Status</FormLabel>
+            <Select defaultValue={selectedUser?.status} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="approved">Active</SelectItem>
+                <SelectItem value="pending">Pending Approval</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )} />
+
+        {/* Action Buttons */}
+        <DialogFooter>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => {
+              editForm.reset(); // Reset form values before closing
+              setIsEditDialogOpen(false);
+            }}
+            className="border-soil-200"
+            disabled={loading} // Disable button when loading
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? "Updating..." : "Update User"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
+  </DialogContent>
+</Dialog>
       {/* Delete User Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -842,12 +825,12 @@ const UserManagement = () => {
             <div className="p-4 mb-4 border border-soil-200 rounded-md bg-soil-50">
               <div className="flex items-center gap-3">
                 <img 
-                  src={selectedUser.profileImage} 
-                  alt={`${selectedUser.firstName} ${selectedUser.lastName}`} 
+                  src="/user.jpg"
+                  alt={`${selectedUser.first_name} ${selectedUser.last_name}`} 
                   className="w-10 h-10 rounded-full object-cover border border-soil-200"
                 />
                 <div>
-                  <div className="font-medium">{selectedUser.firstName} {selectedUser.lastName}</div>
+                  <div className="font-medium">{selectedUser.first_name} {selectedUser.last_name}</div>
                   <div className="text-xs text-soil-500">{selectedUser.email}</div>
                 </div>
               </div>
@@ -857,7 +840,7 @@ const UserManagement = () => {
                 <div className="text-soil-600">Status:</div>
                 <div className="capitalize">{selectedUser.status.replace('_', ' ')}</div>
                 <div className="text-soil-600">Joined:</div>
-                <div>{format(new Date(selectedUser.createdAt), "MMM d, yyyy")}</div>
+                <div>{selectedUser.createdAt ? format(new Date(selectedUser.createdAt), "MMM d, yyyy") : "N/A"}</div>
               </div>
               
               {selectedUser.role === "engineer" && (
@@ -892,7 +875,7 @@ const UserManagement = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 };
 

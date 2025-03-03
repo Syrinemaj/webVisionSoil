@@ -1,77 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, MapPin, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { AddFarmDialog } from "@/components/Engineer/AddFarmDialog";
-
-const MOCK_FARMS = [
-  {
-    id: 1,
-    name: "Green Valley Farm",
-    owner: "John Smith",
-    location: {
-      city: "Sacramento",
-      country: "USA",
-      coordinates: "38.5816° N, 121.4944° W",
-    },
-    image: "/placeholder.svg",
-  },
-  {
-    id: 2,
-    name: "Sunrise Orchards",
-    owner: "Emma Johnson",
-    location: {
-      city: "Portland",
-      country: "USA",
-      coordinates: "45.5155° N, 122.6789° W",
-    },
-    image: "/placeholder.svg",
-  },
-  {
-    id: 3,
-    name: "Golden Fields",
-    owner: "Michael Brown",
-    location: {
-      city: "Denver",
-      country: "USA",
-      coordinates: "39.7392° N, 104.9903° W",
-    },
-    image: "/placeholder.svg",
-  },
-];
-
+import { AddFarmerDialog } from "@/components/Engineer/AddFarmerDialog";
 const FarmSelection = () => {
   const navigate = useNavigate();
-  const [selectedFarm, setSelectedFarm] = useState<number | null>(null);
+  const [farms, setFarms] = useState<any[]>([]);
+  const [selectedFarm, setSelectedFarm] = useState<any | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [isAddFarmerDialogOpen, setIsAddFarmerDialogOpen] = useState(false);
 
-  const handleFarmSelect = (farmId: number) => {
-    setSelectedFarm(farmId);
-    toast.success("Farm selected successfully");
-    navigate(`/dashboard/${farmId}`);
+  const fetchFarms = async () => {
+    try {
+      const response = await fetch("http://localhost:8081/api/farms");
+      if (!response.ok) throw new Error("Erreur lors de la récupération des fermes");
+      const data = await response.json();
+      console.log("Farms:", data);
+      setFarms(data);
+    } catch (error) {
+      console.error("Error fetching farms:", error);
+    }
   };
 
-  // Handle the "Back" button click
-  const handleBack = () => {
-    navigate(-1); // This will navigate back to the previous page
+  useEffect(() => {
+    fetchFarms();
+  }, []);
+
+  const handleFarmSelect = (farm: any) => {
+    setSelectedFarm(farm);
+    toast.success("Farm selected successfully");
+    navigate(`/dashboard/${farm.id}`);
+  };
+
+  const handleAddFarm = (newFarm: any) => {
+    setFarms((prevFarms) => [...prevFarms, newFarm]);
+    toast.success("Farm created successfully!");
+    setIsDialogOpen(false);
   };
 
   return (
     <div className="space-y-8 p-6">
-      {/* Back Button */}
       <div className="flex items-center">
-        <button
-          onClick={handleBack}  // Corrected this to use the handleBack function
-          className="p-2 hover:bg-soil-500/10 rounded-full transition-colors"
-        >
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-soil-500/10 rounded-full transition-colors">
           <ArrowLeft size={24} className="text-soil-700" />
         </button>
       </div>
 
-      {/* Page Title */}
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold bg-gradient-to-r from-green-500 to-teal-600 bg-clip-text text-transparent">
           Select a Farm
@@ -79,7 +57,6 @@ const FarmSelection = () => {
         <p className="text-gray-600">Choose a farm to begin monitoring</p>
       </div>
 
-      {/* Search Input */}
       <div className="relative max-w-md mx-auto">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-soil-400" size={20} />
         <Input
@@ -91,8 +68,14 @@ const FarmSelection = () => {
         />
       </div>
 
-      {/* Add Farm Button (aligned to the right) */}
       <div className="flex justify-end">
+      <Button 
+            onClick={() => setIsAddFarmerDialogOpen(true)}
+            className="bg-soil-500 hover:bg-soil-600"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Farmer
+          </Button>
         <Button
           onClick={() => setIsDialogOpen(true)}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center"
@@ -102,34 +85,49 @@ const FarmSelection = () => {
         </Button>
       </div>
 
-      {/* Farm Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {MOCK_FARMS.map((farm) => (
-          <div
-            key={farm.id}
-            className="bg-white shadow-md rounded-lg p-6 cursor-pointer transition-transform duration-300 hover:scale-105 border border-gray-200"
-            onClick={() => handleFarmSelect(farm.id)}
-          >
-            <img
-              src={farm.image}
-              alt={farm.name}
-              className="w-full h-48 object-cover rounded-lg mb-4"
-            />
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">{farm.name}</h3>
-            <p className="text-gray-600 mb-4">Owned by {farm.owner}</p>
-            <div className="flex items-start gap-2 text-sm text-gray-500">
-              <MapPin size={16} className="mt-1 flex-shrink-0" />
-              <div>
-                <p>{farm.location.city}, {farm.location.country}</p>
-                <p className="text-xs">{farm.location.coordinates}</p>
+      {farms.length === 0 ? (
+        <p className="text-center text-gray-500">No farms available.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {farms.map((farm) => (
+            <div
+              key={farm.id || `${farm.name}-${farm.owner}`}
+              className="bg-white shadow-md rounded-lg p-6 cursor-pointer transition-transform duration-300 hover:scale-105 border border-gray-200"
+              onClick={() => handleFarmSelect(farm)}
+            >
+              <img
+                src={farm.image_url ? `http://localhost:8081${farm.image_url}` : "/placeholder.svg"}
+                alt={farm.name}
+                className="w-full h-48 object-cover rounded-lg mb-4"
+                onError={(e) => {
+                  // Fallback to a placeholder image if the image fails to load
+                  e.currentTarget.src = "/placeholder.svg";
+                }}
+              />
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">{farm.name}</h3>
+              <p className="text-gray-600">
+                Owner: {farm?.owner_first_name ? `${farm?.owner_first_name} ${farm?.owner_last_name}` : "No owner"}
+              </p>
+              <div className="flex items-start gap-2 text-sm text-gray-500">
+                <MapPin size={16} className="mt-1 flex-shrink-0" />
+                <div>
+                  <p>{farm.location}</p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* Add Farm Dialog */}
-      <AddFarmDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} />
+     <AddFarmerDialog
+        open={isAddFarmerDialogOpen}
+        onOpenChange={setIsAddFarmerDialogOpen}
+      />
+      <AddFarmDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onFarmAdded={handleAddFarm}
+      />
     </div>
   );
 };

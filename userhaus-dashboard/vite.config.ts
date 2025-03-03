@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  optimizeDeps: {
+    include: ['react-leaflet', 'leaflet']
+  },
   plugins: [
     react(),
     mode === 'development' &&
@@ -19,4 +22,4 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-}));
+})); 

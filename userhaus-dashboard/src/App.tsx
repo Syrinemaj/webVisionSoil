@@ -15,8 +15,8 @@ import Farmer from "./pages/Farmer/Farmer";
 import Layout from "@/components/layout/Layout";
 import ProtectedRoute from "./pages/ProtectedRoute";
 import Dashboard from "./pages/Admin/Admin";
-// ✅ Import missing components
 
+// ✅ Import missing components
 import RobotManagement from "./pages/Admin/RobotManagement";
 import FarmManagement from "./pages/Admin/FarmManagement";
 import UserManagement from "./pages/Admin/UserManagement";
@@ -24,7 +24,8 @@ import UserManagement from "./pages/Admin/UserManagement";
 const queryClient = new QueryClient();
 
 const App = () => {
-  const isLoggedIn = localStorage.getItem("loggedIn") === "true";
+  const isLoggedIn = localStorage.getItem("loggedIn") === "true"; // ✅ Simplified
+  const userRole = localStorage.getItem("userRole") || "";
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -40,7 +41,8 @@ const App = () => {
 
             {/* Protected Routes (Requires Authentication) */}
             {isLoggedIn ? (
-              <Route element={<Layout />}>
+              // All routes will be wrapped inside the Layout if logged in
+              <Route element={<Layout isLoggedIn={isLoggedIn} userRole={userRole} />}>
                 {/* Engineer Routes */}
                 <Route element={<ProtectedRoute allowedRoles={["engineer"]} />}>
                   <Route path="/farm-selection" element={<FarmSelection />} />
@@ -55,43 +57,19 @@ const App = () => {
 
                 {/* Admin Routes */}
                 <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-                <Route 
-            path="/admin" 
-            element={<Dashboard />} 
-          />
-                  <Route
-                    path="/admin/robots"
-                    element={
-                     
-                        <RobotManagement />
-                     
-                    }
-                  />
-                  <Route
-                    path="/admin/farms"
-                    element={
-                      
-                        <FarmManagement />
-                      
-                    }
-                  />
-                  <Route
-                    path="/admin/users"
-                    element={
-                      
-                        <UserManagement />
-                      
-                    }
-                  />
+                  <Route path="/admin" element={<Dashboard />} />
+                  <Route path="/admin/robots" element={<RobotManagement />} />
+                  <Route path="/admin/farms" element={<FarmManagement />} />
+                  <Route path="/admin/users" element={<UserManagement />} />
                 </Route>
-
-                {/* Catch-All Route */}
-                <Route path="*" element={<NotFound />} />
               </Route>
             ) : (
               // Redirect to Login if Not Authenticated
               <Route path="*" element={<Navigate to="/login" replace />} />
             )}
+
+            {/* Catch-All Route */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>

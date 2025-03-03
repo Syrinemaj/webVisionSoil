@@ -1,4 +1,4 @@
-
+import axios from 'axios';
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -116,11 +116,9 @@ const RobotManagement = () => {
     },
   });
 
-  const assignForm = useForm<AssignEngineerFormValues>({
-    resolver: zodResolver(assignEngineerSchema),
+  const assignForm =useForm({
     defaultValues: {
-      engineerId: "",
-      robotIds: [],
+      robotIds: [], // Assurez-vous que robotIds est initialisé
     },
   });
 
@@ -138,64 +136,119 @@ const RobotManagement = () => {
   }, [selectedRobot, editForm]);
 
   useEffect(() => {
-    fetchData();
+    fetchdata();
   }, []);
 
-  const fetchData = async () => {
+  
+
+  // Fonction pour récupérer toutes les données
+  const fetchdata = async () => {
     try {
       setLoading(true);
-      const [robotsData, farmsData, engineersData] = await Promise.all([
-        robotsApi.getAll(),
-        farmsApi.getAll(),
-        usersApi.getByRole("engineer"),
+  
+      // Récupérer toutes les fermes, ingénieurs et robots en une seule requête parallèle
+      const [farmsRes, engineersRes, robotsRes] = await Promise.all([
+        axios.get("http://localhost:8081/api/farms"),
+        axios.get("http://localhost:8081/api/engineers"),
+        axios.get("http://localhost:8081/api/admin/robots"),
       ]);
+  
+      const farmsData = farmsRes.data;
+      const engineersData = engineersRes.data;
+      const robotsData = robotsRes.data;
+  
+      console.log("Farms data:", farmsData); // Vérifier les données dans la console
+      console.log("Engineers data:", engineersData);
+      console.log("Robots data:", robotsData);
+  
+      // Associer chaque robot à sa ferme et à son ingénieur
+      const enrichedRobots = robotsData.map(robot => {
+        const farm = farmsData.find(f => f.id === robot.farm_id); // Trouver la ferme associée
+        const engineer = engineersData.find(e => e.id === robot.engineer_id); // Trouver l'ingénieur associé
+  
+        return {
+          ...robot,
+          farmName: farm ? farm.name : "Unknown Farm", // Nom de la ferme
+          engineerName: engineer ? `${engineer.first_name} ${engineer.last_name}` : "Unknown Engineer", // Nom de l'ingénieur
+        };
+      });
       
-      setRobots(robotsData);
+  
+      console.log("Enriched Robots:", enrichedRobots); // Vérifier les robots enrichis
+  
+      // Mettre à jour les états
+      setRobots(enrichedRobots);
       setFarms(farmsData);
-      setEngineers(engineersData.filter(eng => eng.status === "active"));
+      setEngineers(engineersData);
+  
     } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load data");
+      console.error("Erreur lors du chargement des données:", error);
+      toast.error("Échec du chargement des données");
     } finally {
       setLoading(false);
     }
   };
-
+  
   const handleCreateRobot = async (values: RobotFormValues) => {
     try {
       setLoading(true);
-      
-      // Get farm and engineer names if IDs are provided
-      let farmName = null;
-      let engineerName = null;
-      
-      if (values.farmId) {
-        const farm = farms.find(f => f.id === values.farmId);
-        farmName = farm ? farm.name : null;
+  
+      // Vérifier que tous les champs obligatoires sont présents
+      if (!values.name || !values.status || !values.connectivity) {
+        toast.error("Name, status, and connectivity are required");
+        console.error("Missing fields:", values);
+        return;
       }
-      
-      if (values.engineerId) {
-        const engineer = engineers.find(e => e.id === values.engineerId);
-        engineerName = engineer ? `${engineer.firstName} ${engineer.lastName}` : null;
-      }
-      
-      const robotData = {
+  
+      // Préparer les données à envoyer
+      const newRobotData: any = {
         name: values.name,
-        farmId: values.farmId,
-        farmName: farmName,
-        engineerId: values.engineerId,
-        engineerName: engineerName,
         status: values.status,
         connectivity: values.connectivity,
-        batteryLevel: Math.floor(Math.random() * 100), // Random battery level for new robot
       };
-      
-      const newRobot = await robotsApi.create(robotData);
-      setRobots([...robots, newRobot]);
+  
+      // Ajouter farmId et engineerId si présents
+      if (values.farmId) {
+        const farmId = parseInt(values.farmId, 10);
+        if (isNaN(farmId)) {
+          toast.error("Invalid farmId");
+          console.error("Invalid farmId:", values);
+          return;
+        }
+        newRobotData.farm_id = farmId;
+      }
+  
+      if (values.engineerId) {
+        const engineerId = parseInt(values.engineerId, 10);
+        if (isNaN(engineerId)) {
+          toast.error("Invalid engineerId");
+          console.error("Invalid engineerId:", values);
+          return;
+        }
+        newRobotData.engineer_id = engineerId;
+      }
+  
+      console.log("Data sent to API:", newRobotData); // 👈 Log des données envoyées
+  
+      const response = await fetch('http://localhost:8081/api/add/robots', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newRobotData),
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text(); // Récupérer la réponse du serveur
+        console.error("Server response:", errorText);
+        throw new Error(`Failed to create robot: ${response.statusText}`);
+      }
+  
+      const createdRobot = await response.json();
+      setRobots(prevRobots => [...prevRobots, createdRobot]);
       setIsAddDialogOpen(false);
-      addForm.reset();
-      
-      toast.success(`Robot ${newRobot.name} added successfully`);
+      toast.success(`Robot added successfully`);
+      fetchdata();
     } catch (error) {
       console.error("Error creating robot:", error);
       toast.error("Failed to create robot");
@@ -203,45 +256,73 @@ const RobotManagement = () => {
       setLoading(false);
     }
   };
-
+  
+  
   const handleUpdateRobot = async (values: RobotFormValues) => {
-    if (!selectedRobot) return;
-
+    if (!selectedRobot) {
+      console.error("No robot selected for update");
+      toast.error("No robot selected for update");
+      return;
+    }
+  
     try {
       setLoading(true);
-      
-      // Get farm and engineer names if IDs are provided
-      let farmName = null;
-      let engineerName = null;
-      
-      if (values.farmId) {
-        const farm = farms.find(f => f.id === values.farmId);
-        farmName = farm ? farm.name : null;
+  
+      // Validation des champs nécessaires
+      if (!values.name || !values.farmId || !values.engineerId || !values.status || !values.connectivity) {
+        toast.error("All fields are required");
+        console.error("Missing fields:", values);  // Log des champs manquants
+        return;
       }
-      
-      if (values.engineerId) {
-        const engineer = engineers.find(e => e.id === values.engineerId);
-        engineerName = engineer ? `${engineer.firstName} ${engineer.lastName}` : null;
+  
+      // Conversion des IDs en entiers
+      const farmId = parseInt(values.farmId, 10);  // Conversion de farmId en entier
+      const engineerId = parseInt(values.engineerId, 10);  // Conversion de engineerId en entier
+  
+      if (isNaN(farmId) || isNaN(engineerId)) {
+        toast.error("Invalid farmId or engineerId");
+        return;
       }
-      
+  
       const updateData = {
         name: values.name,
-        farmId: values.farmId,
-        farmName: farmName,
-        engineerId: values.engineerId,
-        engineerName: engineerName,
+        farmId: farmId,
+        engineerId: engineerId,
         status: values.status,
         connectivity: values.connectivity,
       };
-      
-      const updatedRobot = await robotsApi.update(selectedRobot.id, updateData);
-      
-      setRobots(robots.map(robot => 
-        robot.id === selectedRobot.id ? updatedRobot : robot
-      ));
-      
+  
+      console.log("Data to update robot:", updateData);  // Log des données envoyées
+  
+      // Appel à l'API pour mettre à jour le robot
+      const response = await fetch(`http://localhost:8081/api/update/robots/${selectedRobot.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+  
+      if (!response.ok) {
+        throw new Error(`Failed to update robot: ${response.statusText}`);
+      }
+  
+      const updatedRobot = await response.json();
+      console.log("Updated robot:", updatedRobot);  // Log de la réponse de l'API
+  
+      // Mettre à jour l'état des robots avec le robot mis à jour
+      setRobots(prevRobots =>
+        prevRobots.map(robot =>
+          robot.id === selectedRobot.id ? updatedRobot : robot
+        )
+      );
+  
+      // Fermer le dialogue d'édition
       setIsEditDialogOpen(false);
+  
+      // Afficher un message de succès
       toast.success(`Robot ${updatedRobot.name} updated successfully`);
+      fetchdata();
     } catch (error) {
       console.error("Error updating robot:", error);
       toast.error("Failed to update robot");
@@ -249,54 +330,111 @@ const RobotManagement = () => {
       setLoading(false);
     }
   };
-
+  
   const handleDeleteRobot = async () => {
     if (!selectedRobot) return;
-
+    console.log("Robot ID to delete:", selectedRobot.id);  // Vérifie l'ID avant la requête
+    
     try {
-      setLoading(true);
-      await robotsApi.delete(selectedRobot.id);
-      
-      setRobots(robots.filter(robot => robot.id !== selectedRobot.id));
-      
-      setIsDeleteDialogOpen(false);
-      toast.success(`Robot ${selectedRobot.name} deleted successfully`);
+        setLoading(true);
+        await axios.delete(`http://localhost:8081/api/delete/robot/${selectedRobot.id}`);
+        setRobots(robots.filter(robot => robot.id !== selectedRobot.id));
+        setIsDeleteDialogOpen(false);
+        toast.success("Robot deleted successfully");
+        fetchdata();
     } catch (error) {
-      console.error("Error deleting robot:", error);
-      toast.error("Failed to delete robot");
+        console.error("Error deleting robot:", error);
+        toast.error("Failed to delete robot");
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
+
 
   const handleAssignEngineer = async (values: AssignEngineerFormValues) => {
     try {
-      setLoading(true);
-      
-      const updatedRobots = await robotsApi.assignToEngineer(values.robotIds, values.engineerId);
-      
-      // Update the robots list with the assigned robots
-      setRobots(robots.map(robot => {
-        const updatedRobot = updatedRobots.find(r => r.id === robot.id);
-        return updatedRobot || robot;
-      }));
-      
-      setIsAssignDialogOpen(false);
-      assignForm.reset();
-      setSelectedRobotIds([]);
-      
-      // Get engineer name for the toast message
-      const engineer = engineers.find(e => e.id === values.engineerId);
-      const engineerName = engineer ? `${engineer.firstName} ${engineer.lastName}` : "Engineer";
-      
-      toast.success(`${updatedRobots.length} robots assigned to ${engineerName}`);
+        setLoading(true);
+
+        console.log("Form Values Received:", values);
+
+        // Log the API request being sent
+        console.log("Sending request to assign engineer:", {
+            robotIds: values.robotIds,
+            engineerId: values.engineerId,
+        });
+
+        // Fetch the current state of robots before updating
+        const robotsBeforeUpdate = robots.filter(robot => values.robotIds.includes(robot.id));
+
+        // Send request to assign engineer
+        const response = await fetch('http://localhost:8081/api/robots/assign-engineer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                robotIds: values.robotIds,
+                engineerId: values.engineerId,
+            }),
+        });
+
+        // Fetch updated data
+        fetchdata();
+
+        console.log("API Response Status:", response.status, response.statusText);
+
+        if (!response.ok) {
+            const errorResponse = await response.json();
+            console.error("API Error Response:", errorResponse);
+            throw new Error("Failed to assign engineer");
+        }
+
+        // Get the updated robot list from the API response
+        const updatedRobots = await response.json();
+        console.log("API Success Response - Updated Robots:", updatedRobots);
+
+        // Update the frontend robot list
+        setRobots((prevRobots) => {
+            const updatedRobotsList = prevRobots.map((robot) => {
+                // Check if the robot was just updated
+                const updatedRobot = updatedRobots.find((r) => r.id === robot.id);
+                
+                if (updatedRobot) {
+                    // If the robot was "available", set it to "in_use"
+                    if (robot.status === "available") {
+                        updatedRobot.status = "in_use";
+                    }
+                    return updatedRobot;
+                }
+                return robot; // Keep the existing robot if it wasn’t updated
+            });
+
+            console.log("Updated Robots List:", updatedRobotsList);
+            return updatedRobotsList;
+        });
+
+        // Close dialog and reset form
+        setIsAssignDialogOpen(false);
+        assignForm.reset();
+        setSelectedRobotIds([]);
+
+        // Get engineer details for the success message
+        const engineer = engineers.find((e) => e.id === values.engineerId);
+        const engineerName = engineer ? `${engineer.first_name} ${engineer.last_name}` : "Engineer";
+
+        console.log("Engineer Assigned:", engineerName);
+
+        // Show success message
+        toast.success(`${updatedRobots.length} robots assigned to ${engineerName}`);
     } catch (error) {
-      console.error("Error assigning engineer:", error);
-      toast.error("Failed to assign engineer");
+        console.error("Error assigning engineer:", error);
+        toast.error("Failed to assign engineer");
     } finally {
-      setLoading(false);
+        setLoading(false);
+        console.log("Loading state set to false");
     }
-  };
+};
+
 
   // Table columns
   const columns: ColumnDef<Robot>[] = [
@@ -492,7 +630,7 @@ const RobotManagement = () => {
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <Card className="border border-soil-200 overflow-hidden h-full glass-card">
+                    <Card className="border border-soil-200 overflow-hidden h-full glass-card bg-white">
                       <CardHeader className="pb-2">
                         <div className="flex justify-between items-start">
                           <CardTitle className="text-lg font-medium">
@@ -553,9 +691,7 @@ const RobotManagement = () => {
                               </div>
                             )}
                             
-                            <div className="text-xs text-soil-500 mt-2">
-                              Last active: {format(new Date(robot.lastActive), "MMM d, yyyy HH:mm")}
-                            </div>
+                           
                           </div>
                         </div>
                       </CardContent>
@@ -689,7 +825,7 @@ const RobotManagement = () => {
                     <FormLabel>Assign to Farm (Optional)</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      defaultValue={field.value || ""}
+                      defaultValue={field.value || undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -697,7 +833,6 @@ const RobotManagement = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
                         {farms.map((farm) => (
                           <SelectItem key={farm.id} value={farm.id}>
                             {farm.name}
@@ -718,7 +853,7 @@ const RobotManagement = () => {
                     <FormLabel>Assign to Engineer (Optional)</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      defaultValue={field.value || ""}
+                      defaultValue={field.value || undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -726,10 +861,9 @@ const RobotManagement = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
                         {engineers.map((engineer) => (
                           <SelectItem key={engineer.id} value={engineer.id}>
-                            {engineer.firstName} {engineer.lastName}
+                            {engineer.first_name} {engineer.last_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -841,7 +975,7 @@ const RobotManagement = () => {
                     <FormLabel>Assign to Farm</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      defaultValue={field.value || ""}
+                      defaultValue={field.value || undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -849,7 +983,6 @@ const RobotManagement = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
                         {farms.map((farm) => (
                           <SelectItem key={farm.id} value={farm.id}>
                             {farm.name}
@@ -870,7 +1003,7 @@ const RobotManagement = () => {
                     <FormLabel>Assign to Engineer</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      defaultValue={field.value || ""}
+                      defaultValue={field.value || undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -878,10 +1011,9 @@ const RobotManagement = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
                         {engineers.map((engineer) => (
                           <SelectItem key={engineer.id} value={engineer.id}>
-                            {engineer.firstName} {engineer.lastName}
+                            {engineer.first_name} {engineer.last_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -939,8 +1071,8 @@ const RobotManagement = () => {
                     <div>{selectedRobot.engineerName}</div>
                   </>
                 )}
-                <div className="text-soil-600">Last Active:</div>
-                <div>{format(new Date(selectedRobot.lastActive), "MMM d, yyyy HH:mm")}</div>
+            
+                
               </div>
             </div>
           )}
@@ -993,7 +1125,7 @@ const RobotManagement = () => {
                       <SelectContent>
                         {engineers.map((engineer) => (
                           <SelectItem key={engineer.id} value={engineer.id}>
-                            {engineer.firstName} {engineer.lastName}
+                            {engineer.first_name} {engineer.last_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1003,57 +1135,42 @@ const RobotManagement = () => {
                 )}
               />
               
+              {/* This is the truncated section that caused the issue - fixing it now */}
               <FormField
                 control={assignForm.control}
                 name="robotIds"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Select Robots</FormLabel>
-                    <FormControl>
-                      <div className="border border-input rounded-md p-4 space-y-3">
-                        {robots
-                          .filter(robot => robot.status !== "maintenance")
-                          .map(robot => (
-                            <div key={robot.id} className="flex items-center gap-2">
-                              <input 
-                                type="checkbox"
-                                id={`robot-${robot.id}`}
-                                value={robot.id}
-                                checked={selectedRobotIds.includes(robot.id)}
-                                onChange={(e) => {
-                                  const isChecked = e.target.checked;
-                                  const newSelected = isChecked
-                                    ? [...selectedRobotIds, robot.id]
-                                    : selectedRobotIds.filter(id => id !== robot.id);
-                                  
-                                  setSelectedRobotIds(newSelected);
-                                  field.onChange(newSelected);
-                                }}
-                                className="h-4 w-4 rounded border-soil-300 text-primary focus:ring-primary"
-                              />
-                              <label 
-                                htmlFor={`robot-${robot.id}`}
-                                className="text-sm font-medium leading-none cursor-pointer"
-                              >
-                                {robot.name} 
-                                {robot.engineerName && (
-                                  <span className="text-xs text-soil-500 ml-2">
-                                    (Currently assigned to {robot.engineerName})
-                                  </span>
-                                )}
-                              </label>
-                            </div>
-                          ))}
-                        {robots.filter(robot => robot.status !== "maintenance").length === 0 && (
-                          <div className="text-sm text-soil-500">
-                            No available robots to assign.
-                          </div>
-                        )}
-                      </div>
-                    </FormControl>
                     <FormDescription>
-                      Select one or more robots to assign to the engineer.
+                      Choose which robots to assign to the selected engineer.
                     </FormDescription>
+                    <div className="space-y-2 mt-2">
+                      {robots.filter(r => !r.engineerId).map((robot) => (
+                        <div key={robot.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`robot-${robot.id}`}
+                            value={robot.id}
+                            checked={selectedRobotIds.includes(robot.id)}
+                            onChange={(e) => {
+                              const id = robot.id;
+                              if (e.target.checked) {
+                                setSelectedRobotIds([...selectedRobotIds, id]);
+                                field.onChange([...field.value || [], id]);
+                              } else {
+                                setSelectedRobotIds(selectedRobotIds.filter(r => r !== id));
+                                field.onChange((field.value || []).filter(r => r !== id));
+                              }
+                            }}
+                            className="h-4 w-4 rounded border-soil-300 text-primary focus:ring-soil-200"
+                          />
+                          <label htmlFor={`robot-${robot.id}`} className="text-sm">
+                            {robot.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1063,7 +1180,10 @@ const RobotManagement = () => {
                 <Button 
                   type="button" 
                   variant="outline" 
-                  onClick={() => setIsAssignDialogOpen(false)}
+                  onClick={() => {
+                    setIsAssignDialogOpen(false);
+                    setSelectedRobotIds([]);
+                  }}
                   className="border-soil-200"
                 >
                   Cancel

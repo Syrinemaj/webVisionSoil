@@ -31,7 +31,13 @@ export const Login = () => {
 
       if (response.data.success) {
         const { user } = response.data;
-
+      
+        // 🔹 Vérification du statut avant connexion
+        if (user.role === "engineer" && user.status !== "approved") {
+          toast.error("Your account is pending approval.");
+          return;
+        }
+       console.log(user.status)
         toast.success("Connexion réussie !");
         window.localStorage.setItem("authToken", response.data.token);
         window.localStorage.setItem("userRole", user.role);

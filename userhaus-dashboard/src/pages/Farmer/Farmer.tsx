@@ -1,18 +1,17 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 import FarmSelection from '@/components/Farmer/FarmSelection';
 import FruitSelection from '@/components/Farmer/FruitSelection';
 import FruitDashboard from '@/components/Farmer/FruitDashboard';
-
-import { motion, AnimatePresence } from 'framer-motion';
 
 export type Farm = {
   id: string;
   name: string;
   location: string;
   image: string;
-  soilMoisture: number;
-  temperature: number;
+  humidity?: number;
+  temperature?: number;
 };
 
 export type Fruit = {
@@ -25,56 +24,61 @@ export type Fruit = {
 
 const Farmer = () => {
   const [step, setStep] = useState<'farm' | 'fruit' | 'dashboard'>('farm');
+  const [farms, setFarms] = useState<Farm[]>([]);
+  const [fruits, setFruits] = useState<Fruit[]>([]);
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
   const [selectedFruit, setSelectedFruit] = useState<Fruit | null>(null);
+  const userId = localStorage.getItem("userId"); // Récupération de l'ID du fermier
 
-  // Sample data
-  const farms: Farm[] = [
-    {
-      id: '1',
-      name: 'Green Valley Farm',
-      location: 'California, USA',
-      image: 'https://images.unsplash.com/photo-1501854140801-50d01698950b',
-      soilMoisture: 75,
-      temperature: 22,
-    },
-    {
-      id: '2',
-      name: 'Sunset Hills',
-      location: 'Oregon, USA',
-      image: 'https://images.unsplash.com/photo-1472396961693-142e6e269027',
-      soilMoisture: 68,
-      temperature: 20,
-    },
-  ];
+  // Charger les fermes du fermier
+  useEffect(() => {
+    if (userId) {
+      axios.get(`http://localhost:8081/farms/farmer/${userId}`)
+        .then(async (response) => {
+          const farmsData = response.data;
 
-  const fruits: Fruit[] = [
-    {
-      id: '1',
-      name: 'Tomatoes',
-      image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9',
-      production: 1200,
-      ripeness: 85,
-    },
-    {
-      id: '2',
-      name: 'Potatoes',
-      image: 'https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07',
-      production: 3500,
-      ripeness: 70,
-    },
-  ];
+          // Récupérer les données de capteurs pour chaque ferme
+          const updatedFarms = await Promise.all(
+            farmsData.map(async (farm: Farm) => {
+              try {
+                // Appel de l'API pour récupérer les données des capteurs
+                const sensorResponse = await axios.get(`http://localhost:8081/sensor-data/farm/${farm.id}`);
+                const { humidity, temperature } = sensorResponse.data;
+                console.log(sensorResponse.data)
+                return { ...farm, humidity, temperature };
+                
+              } catch (error) {
+                console.error(`Erreur lors de la récupération des capteurs pour la ferme ${farm.id}`, error);
+                return { ...farm, humidity: null, temperature: null };
+                
+              }
+            })
+          );
 
+          setFarms(updatedFarms);
+        })
+        .catch(error => console.error('Erreur lors du chargement des fermes', error));
+    }
+  }, [userId]);
+
+  // Charger les fruits après sélection d'une ferme
   const handleFarmSelect = (farm: Farm) => {
     setSelectedFarm(farm);
+    localStorage.setItem("farmId", farm.id);
     setStep('fruit');
+
+    axios.get(`http://localhost:8081/zones/farm/${farm.id}`)
+      .then(response => setFruits(response.data))
+      .catch(error => console.error('Erreur lors du chargement des fruits', error));
   };
 
+  // Sélection d'un fruit pour afficher le tableau de bord
   const handleFruitSelect = (fruit: Fruit) => {
     setSelectedFruit(fruit);
     setStep('dashboard');
   };
 
+  // Retour à l'étape précédente
   const handleBack = () => {
     if (step === 'dashboard') {
       setStep('fruit');
@@ -82,60 +86,59 @@ const Farmer = () => {
     } else if (step === 'fruit') {
       setStep('farm');
       setSelectedFarm(null);
+      localStorage.removeItem("farmId");
     }
   };
 
   return (
-    
-      <div className="min-h-screen bg-gradient-to-br from-soil-100 to-soil-50">
-        <AnimatePresence mode="wait">
-          {step === 'farm' && (
-            <motion.div
-              key="farm"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <FarmSelection farms={farms} onSelect={handleFarmSelect} />
-            </motion.div>
-          )}
-          
-          {step === 'fruit' && selectedFarm && (
-            <motion.div
-              key="fruit"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <FruitSelection 
-                fruits={fruits} 
-                onSelect={handleFruitSelect} 
-                onBack={handleBack}
-                farmName={selectedFarm.name} 
-              />
-            </motion.div>
-          )}
-          
-          {step === 'dashboard' && selectedFarm && selectedFruit && (
-            <motion.div
-              key="dashboard"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <FruitDashboard 
-                farm={selectedFarm} 
-                fruit={selectedFruit} 
-                onBack={handleBack} 
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-  
+    <div className="min-h-screen bg-gradient-to-br from-soil-100 to-soil-50 p-6">
+      <AnimatePresence mode="wait">
+        {step === 'farm' && (
+          <motion.div
+            key="farm"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <FarmSelection farms={farms} onSelect={handleFarmSelect} />
+          </motion.div>
+        )}
+
+        {step === 'fruit' && selectedFarm && (
+          <motion.div
+            key="fruit"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <FruitSelection 
+              fruits={fruits} 
+              onSelect={handleFruitSelect} 
+              onBack={handleBack}
+              farmName={selectedFarm.name} 
+            />
+          </motion.div>
+        )}
+
+        {step === 'dashboard' && selectedFarm && selectedFruit && (
+          <motion.div
+            key="dashboard"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <FruitDashboard 
+              farm={selectedFarm} 
+              fruit={selectedFruit} 
+              onBack={handleBack} 
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 

@@ -1,12 +1,27 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { DashboardCard } from "@/components/Engineer/DashboardCard";
 import { WeatherWidget } from "@/components/Engineer/WeatherWidget";
 import { SoilHealthCard } from "@/components/Engineer/SoilHealthCard";
 import { Page, Text, View, Document, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer";
-import { ArrowLeft, Download } from "lucide-react"; // Make sure FileDownload is imported
-import { toast } from "sonner"; // Ensure you import toast for notifications
+import { ArrowLeft, Download } from "lucide-react";
+import { toast } from "sonner";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { LatLngExpression, Icon } from "leaflet";
+import markerIconPng from "leaflet/dist/images/marker-icon.png";
+import "leaflet/dist/leaflet.css";
+import { useMap } from "react-leaflet";
 
-// Define the PDF document to be downloaded
+
+
+const MapView = ({ position, zoom }: { position: LatLngExpression; zoom: number }) => {
+  const map = useMap();
+  map.setView(position, zoom);
+  return null;
+};
+
+
+// Définition du document PDF
 const MyDocument = () => (
   <Document>
     <Page style={styles.page}>
@@ -33,36 +48,89 @@ const styles = StyleSheet.create({
   },
 });
 
-const FarmDashboard = () => {
-  const { farmId } = useParams();
-  const navigate = useNavigate();
+interface WeatherData {
+  temperature: number;
+  humidity: number;
+  weatherCondition: string;
+  highTemp: number;
+  lowTemp: number;
+  precipitation: number;
+}
 
-  // Handle the "Back" button click
-  const handleBack = () => {
-    navigate(-1); // This will navigate back to the previous page
-  };
+interface FarmData {
+  id: number;
+  name: string;
+  owner: string;
+  latitude?: number;
+  longitude?: number;
+  weather?: string; // JSON string
+  irrigationTime?: string;
+  nutrientDeficiency?: string;
+}
+
+const FarmDashboard = () => {
+  const { farmId } = useParams<{ farmId: string }>();
+  const navigate = useNavigate();
+  const [farmData, setFarmData] = useState<FarmData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchFarmData = async () => {
+      try {
+        const response = await fetch(`http://localhost:8081/api/farm/${farmId}`);
+        if (!response.ok) throw new Error("Farm not found");
+        const data = await response.json();
+        setFarmData(data);
+      } catch (error) {
+        console.error("Error fetching farm data:", error);
+        setError("Failed to load farm data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFarmData();
+  }, [farmId]);
+
+  // Retour arrière
+  const handleBack = () => navigate(-1);
+
+  // Icône personnalisée
+  const customIcon = new Icon({
+    iconUrl: markerIconPng,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+    shadowSize: [41, 41],
+  });
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>{error}</div>;
+
+  // Récupération des données météo
+  const weatherData = farmData?.weather ? JSON.parse(farmData.weather) : null;
+  const position: LatLngExpression = farmData?.latitude && farmData?.longitude ? [farmData.latitude, farmData.longitude] : [0, 0];
 
   return (
     <div className="space-y-8 p-6">
-      {/* Back Button */}
+      {/* Bouton Retour */}
       <div className="flex items-center">
-        <button
-          onClick={handleBack} // Navigate back when clicked
-          className="p-2 hover:bg-soil-500/10 rounded-full transition-colors"
-        >
+        <button onClick={handleBack} className="p-2 hover:bg-soil-500/10 rounded-full transition-colors">
           <ArrowLeft size={24} className="text-soil-700" />
         </button>
       </div>
 
-      {/* Page Title */}
+      {/* Titre */}
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold bg-gradient-to-r from-green-500 to-teal-600 bg-clip-text text-transparent">
-          Farm Dashboard
+          Farm Dashboard - {farmData?.name}
         </h1>
-        <p className="text-gray-600">Real-time monitoring and analytics</p>
+        <p className="text-gray-600">Owner: {farmData?.owner || "Unknown"}</p>
       </div>
 
-      {/* PDF Download Link */}
+      {/* Téléchargement du PDF */}
       <PDFDownloadLink document={<MyDocument />} fileName="AI_Analysis_Report.pdf">
         {({ loading }) => (
           <button
@@ -76,31 +144,54 @@ const FarmDashboard = () => {
       </PDFDownloadLink>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        {/* Section Carte */}
         <DashboardCard className="lg:col-span-2">
-          <div className="aspect-video rounded-lg bg-soil-200/50 flex items-center justify-center">
-            <p className="text-soil-600">Aerial View Map</p>
-          </div>
+          {farmData?.latitude && farmData?.longitude ? (
+            <div style={{ height: "400px", width: "100%" }}>
+         <MapContainer key={position.toString()} style={{ height: "100%", width: "100%" }}>
+  <MapView position={position} zoom={13} />
+  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+  <Marker position={position} {...{ icon: customIcon }}>
+  <Popup>{farmData?.name}</Popup>
+</Marker>
+
+</MapContainer>
+
+
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-soil-600">No location data available for this farm</p>
+            </div>
+          )}
         </DashboardCard>
 
+        {/* Météo & Santé du sol */}
         <div className="flex flex-col gap-8">
-          <WeatherWidget />
+          <WeatherWidget weather={weatherData} />
           <SoilHealthCard />
         </div>
 
+        {/* Tendances de croissance */}
         <DashboardCard title="Growth Trends" subtitle="Last 30 days" className="lg:col-span-2">
           <div className="h-64 rounded-lg bg-soil-200/50 flex items-center justify-center">
             <p className="text-soil-600">Growth Chart</p>
           </div>
         </DashboardCard>
 
+        {/* Insights AI */}
         <DashboardCard title="AI Insights" className="h-full">
           <div className="space-y-4">
             <div className="rounded-lg bg-soil-100 p-4">
-              <p className="text-sm font-medium text-soil-800">Optimal irrigation time: 6:00 AM</p>
+              <p className="text-sm font-medium text-soil-800">
+                Optimal irrigation time: {farmData?.irrigationTime || "Not available"}
+              </p>
               <p className="text-xs text-soil-600">Based on weather forecast and soil moisture levels</p>
             </div>
             <div className="rounded-lg bg-soil-100 p-4">
-              <p className="text-sm font-medium text-soil-800">Nutrient deficiency alert</p>
+              <p className="text-sm font-medium text-soil-800">
+                Nutrient deficiency alert: {farmData?.nutrientDeficiency || "None detected"}
+              </p>
               <p className="text-xs text-soil-600">Consider adding nitrogen-rich fertilizer</p>
             </div>
           </div>

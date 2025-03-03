@@ -1,6 +1,5 @@
-
 import { motion } from 'framer-motion';
-import { Farm } from '@/pages/Farmer';
+import { Farm } from '@/pages/Farmer/Farmer';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
 
@@ -41,6 +40,13 @@ const FarmSelection = ({ farms, onSelect }: FarmSelectionProps) => {
           />
         </div>
 
+        {/* Display message if no farms found */}
+        {filteredFarms.length === 0 && (
+          <div className="text-center text-soil-600">
+            <p>No farms found</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredFarms.map((farm) => (
             <motion.div
@@ -66,7 +72,7 @@ const FarmSelection = ({ farms, onSelect }: FarmSelectionProps) => {
                 <div className="p-4 grid grid-cols-2 gap-4">
                   <div className="text-center">
                     <p className="text-sm text-soil-600">Soil Moisture</p>
-                    <p className="text-lg font-semibold text-soil-900">{farm.soilMoisture}%</p>
+                    <p className="text-lg font-semibold text-soil-900">{farm.humidity}%</p>
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-soil-600">Temperature</p>
