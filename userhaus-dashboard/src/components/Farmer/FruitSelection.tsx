@@ -33,7 +33,7 @@ const FruitSelection = ({ fruits, onSelect, onBack, farmName }: FruitSelectionPr
         </div>
 
         <div className="text-center space-y-4">
-          <h2 className="text-3xl font-semibold text-soil-900">Select a Crop</h2>
+          <h2 className="text-3xl font-bold text-soil-500 hover:text-soil-600">Select a Crop</h2>
           <p className="text-soil-700">Choose a crop to view detailed information</p>
         </div>
 
@@ -49,7 +49,7 @@ const FruitSelection = ({ fruits, onSelect, onBack, farmName }: FruitSelectionPr
               <div className="bg-white/70 backdrop-blur-sm rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-soil-200">
                 <div className="relative h-48">
                   <img
-                    src={fruit.image}
+                     src="/tomato.jpg"
                     alt={fruit.name}
                     className="w-full h-full object-cover"
                   />

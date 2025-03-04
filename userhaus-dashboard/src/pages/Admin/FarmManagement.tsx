@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -77,7 +76,6 @@ const farmSchema = z.object({
   location: z.string().min(5, { message: "Location must be at least 5 characters" }),
   farmerId: z.string({ required_error: "Please select a farmer" }),
   status: z.enum(["active", "inactive"]),
-  // Updated GPS coordinates validation to use number type directly
   latitude: z.coerce.number(),
   longitude: z.coerce.number(),
   image: z.string().default("https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&h=600&fit=crop"),
@@ -124,65 +122,59 @@ const FarmManagement = () => {
 
   useEffect(() => {
     if (selectedFarm) {
-      // Vérifier si gpsCoordinates existe avant d'y accéder
       const { gpsCoordinates } = selectedFarm;
       editForm.reset({
         name: selectedFarm.name,
         location: selectedFarm.location,
         farmerId: selectedFarm.farmerId,
         status: selectedFarm.status,
-        latitude: gpsCoordinates ? gpsCoordinates.latitude : '', // Valeur par défaut si gpsCoordinates est undefined
-        longitude: gpsCoordinates ? gpsCoordinates.longitude : '', // Valeur par défaut si gpsCoordinates est undefined
+        latitude: gpsCoordinates ? gpsCoordinates.latitude : '',
+        longitude: gpsCoordinates ? gpsCoordinates.longitude : '',
         image: selectedFarm.image,
       });
     }
   }, [selectedFarm, editForm]);
-  
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  
   const fetchData = async () => {
     try {
       setLoading(true);
-  
-      // Récupérer toutes les fermes, utilisateurs et robots en une seule requête parallèle
+
       const [farmsRes, farmersRes, robotsRes] = await Promise.all([
         axios.get("http://localhost:8081/api/farms"),
         axios.get("http://localhost:8081/api/farmers"),
-        axios.get("http://localhost:8081/api/admin/robots"), // ✅ Ajout des robots
+        axios.get("http://localhost:8081/api/admin/robots"),
       ]);
-  
+
       const farmsData = farmsRes.data;
       const farmersData = farmersRes.data;
       const robotsData = robotsRes.data;
       window.localStorage.setItem("farmer", farmersData);
-      console.log("Farms data:", farmsData); // Vérifier les données dans la console
+      console.log("Farms data:", farmsData);
       console.log("Farmers data:", farmersData);
       console.log("Robots data:", robotsData);
-  
-      // Associer chaque ferme à son propriétaire, compter les robots, et déterminer le statut
+
       const enrichedFarms = farmsData.map(farm => {
         const farmer = farmersData.find(f => f.id === farm.owner_id);
-        const farmRobots = robotsData.filter(robot => robot.farm_id === farm.id); // Liste des robots de la ferme
-        const robotCount = farmRobots.length; // Compter les robots
-        console.log(`Farm ID: ${farm.id}, Robots:`, farmRobots); // Afficher les robots de la ferme
-  
-        // Déterminer si au moins un robot est actif ou disponible
+        const farmRobots = robotsData.filter(robot => robot.farm_id === farm.id);
+        const robotCount = farmRobots.length;
+        console.log(`Farm ID: ${farm.id}, Robots:`, farmRobots);
+
         const farmStatus = farmRobots.some(robot => robot.status === "active" || robot.status === "available") ? "active" : "inactive";
-        console.log(`Farm ID: ${farm.id}, Status: ${farmStatus}`); // Vérifier le statut déterminé
-  
+        console.log(`Farm ID: ${farm.id}, Status: ${farmStatus}`);
+
         return {
           ...farm,
           farmerName: farmer ? `${farmer.first_name} ${farmer.last_name}` : "Unknown",
-          robotCount, // Nombre de robots
-          status: farmStatus, // Statut de la ferme en fonction des robots
+          robotCount,
+          status: farmStatus,
         };
       });
-  
-      console.log("Enriched Farms:", enrichedFarms); // Vérifier les fermes enrichies
+
+      console.log("Enriched Farms:", enrichedFarms);
       setFarms(enrichedFarms);
       setFarmers(farmersData);
     } catch (error) {
@@ -192,15 +184,11 @@ const FarmManagement = () => {
       setLoading(false);
     }
   };
-  
-  
-  
 
   const handleCreateFarm = async (values: FarmFormValues) => {
     try {
       setLoading(true);
       
-      // Get farmer name
       const farmer = farmers.find(f => f.id === values.farmerId);
       const farmerName = farmer ? `${farmer.first_name} ${farmer.last_name}` : "Unknown";
       
@@ -215,7 +203,7 @@ const FarmManagement = () => {
         farmerName: farmerName,
         status: values.status,
         image: values.image,
-        robotCount: 0, // Initially zero robots
+        robotCount: 0,
       };
       
       const newFarm = await farmsApi.create(farmData);
@@ -231,106 +219,95 @@ const FarmManagement = () => {
       setLoading(false);
     }
   };
- 
+
   const handleUpdateFarm = async (values) => {
     if (!selectedFarm) {
       console.error(" No farm selected for update.");
       toast.error("No farm selected.");
       return;
     }
-  
+
     try {
       setLoading(true);
-  
-      // ✅ Retrieve and parse farmer data safely
+
       let farmerId = null;
       const storedFarmer = window.localStorage.getItem("farmer");
-  
+
       if (storedFarmer) {
         try {
-          const farmerData = JSON.parse(storedFarmer);  // Correct JSON parsing
-          farmerId = farmerData?.id || null;  
+          const farmerData = JSON.parse(storedFarmer);
+          farmerId = farmerData?.id || null;
         } catch (parseError) {
           console.error("❌ Failed to parse farmer data:", parseError);
           farmerId = null;
         }
       }
-  
-      // ✅ Ensure required fields exist before making the request
+
       if (!values.name || !values.location) {
         console.error(" Missing required fields:", values);
         toast.error("Missing required fields");
         return;
       }
-  
-      // ✅ Construct the update data object
+
       const updateData = {
         name: values.name,
         location: values.location,
-        owner_id: values.farmerId || farmerId,  // Use from localStorage if missing
-        image_url: values.image_url || null,    // Added image_url field
-        "latitude": 40.7128,
-  "longitude": -74.0060,            // Added longitude
+        owner_id: values.farmerId || farmerId,
+        image_url: values.image_url || null,
+        latitude: 40.7128,
+        longitude: -74.0060,
       };
-  
+
       console.log("✅ Sending update data:", updateData);
-  
-      // ✅ Make the API request
+
       const response = await axios.put(
         `http://localhost:8081/api/farms/${selectedFarm.id}`,
         updateData
       );
-  
-      // ✅ Update UI state with the new farm data
+
       const updatedFarm = response.data;
       setFarms(farms.map((farm) => (farm.id === selectedFarm.id ? updatedFarm : farm)));
-  
+
       setIsEditDialogOpen(false);
       toast.success(` Farm updated successfully!`);
       fetchData();
     } catch (error) {
       console.error(" Error updating farm:", error);
-  
+
       if (error.response) {
         console.error(" Server Response:", error.response.data);
       }
-  
+
       toast.error("Failed to update farm. Please check your input.");
     } finally {
       setLoading(false);
     }
   };
-  
-  
-  
+
   const handleDeleteConfirmation = () => {
     if (!selectedFarm) return;
     setIsDeleteAlertOpen(true);
   };
 
-    const handleDeleteFarm = async (id: string) => {
-      try {
-        setLoading(true);
-    
-        const response = await axios.delete(`http://localhost:8081/api/delete/farms/${id}`);
-    
-        if (response.status === 200) {
-          // Mettre à jour l'état des fermes après suppression
-          setFarms(farms.filter(farm => farm.id !== id));
-          toast.success("Farm deleted successfully");
-        }
-      } catch (error) {
-        console.error("Error deleting farm:", error);
-        toast.error("Failed to delete farm");
-      } finally {
-        setLoading(false);
+  const handleDeleteFarm = async (id: string) => {
+    try {
+      setLoading(true);
+
+      const response = await axios.delete(`http://localhost:8081/api/delete/farms/${id}`);
+
+      if (response.status === 200) {
+        setFarms(farms.filter(farm => farm.id !== id));
+        toast.success("Farm deleted successfully");
       }
-    };
-    
-  // Simulate getting the current location
+    } catch (error) {
+      console.error("Error deleting farm:", error);
+      toast.error("Failed to delete farm");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGetCurrentLocation = () => {
-    // In a real app, you would use the browser's Geolocation API
-    // For demo purposes, let's just set some example coordinates
     const demoCoordinates = {
       latitude: 38.5025 + (Math.random() * 2 - 1),
       longitude: -122.2654 + (Math.random() * 2 - 1),
@@ -343,8 +320,21 @@ const FarmManagement = () => {
     toast.success("GPS coordinates updated");
   };
 
-  // Table columns
   const columns: ColumnDef<Farm>[] = [
+    {
+      accessorKey: "image",
+      header: "Image",
+      cell: ({ row }) => (
+        <img
+          src={row.original.image ? `http://localhost:8081${row.original.image}` : "/placeholder.svg"}
+          alt={row.original.name}
+          className="w-16 h-16 object-cover rounded-md"
+          onError={(e) => {
+            e.currentTarget.src = "/placeholder.svg";
+          }}
+        />
+      ),
+    },
     {
       accessorKey: "name",
       header: "Farm Name",
@@ -489,9 +479,9 @@ const FarmManagement = () => {
                     <Card className="border border-soil-200 overflow-hidden h-full glass-card">
                       <div className="h-48 relative">
                         <img 
-                          src="/farm.jpg"
+                          src="/farm.jpg" 
                           alt={farm.name} 
-                          className="h-full w-full object-cover"
+                          
                         />
                         <div className="absolute top-4 right-4">
                           <StatusBadge 
@@ -750,107 +740,107 @@ const FarmManagement = () => {
         </DialogContent>
       </Dialog>
 
-{/* Edit Farm Dialog */}
-<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-  <DialogContent className="sm:max-w-[500px] glass-card">
-    <DialogHeader>
-      <DialogTitle>Edit Farm</DialogTitle>
-      <DialogDescription>
-        Update farm information and settings.
-      </DialogDescription>
-    </DialogHeader>
-    <Form {...editForm}>
-      <form onSubmit={editForm.handleSubmit(handleUpdateFarm)} className="space-y-5">
-        <FormField
-          control={editForm.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Farm Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter farm name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={editForm.control}
-          name="location"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Location</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Enter farm location" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={editForm.control}
-          name="farmerId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Farm Owner</FormLabel>
-              <Select 
-                onValueChange={field.onChange} 
-                defaultValue={field.value}
-              >
-                <FormControl>
-                  <SelectTrigger className="bg-white/50"> {/* Lighter background here */}
-                    <SelectValue placeholder="Select a farmer" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent className="bg-white/50"> {/* Lighter background here */}
-                  {farmers.map((farmer) => (
-                    <SelectItem key={farmer.id} value={farmer.id}>
-                      {farmer.first_name} {farmer.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={editForm.control}
-          name="image"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Farm Image URL</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter image URL" {...field} />
-              </FormControl>
-              <FormDescription>
-                Enter a URL for the farm image.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <DialogFooter>
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => setIsEditDialogOpen(true)}
-            className="border-soil-200"
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? "Updating..." : "Update Farm"}
-          </Button>
-        </DialogFooter>
-      </form>
-    </Form>
-  </DialogContent>
-</Dialog>
+      {/* Edit Farm Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] glass-card">
+          <DialogHeader>
+            <DialogTitle>Edit Farm</DialogTitle>
+            <DialogDescription>
+              Update farm information and settings.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(handleUpdateFarm)} className="space-y-5">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farm Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter farm name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={editForm.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Enter farm location" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={editForm.control}
+                name="farmerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farm Owner</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="bg-white/50">
+                          <SelectValue placeholder="Select a farmer" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-white/50">
+                        {farmers.map((farmer) => (
+                          <SelectItem key={farmer.id} value={farmer.id}>
+                            {farmer.first_name} {farmer.last_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={editForm.control}
+                name="image"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farm Image URL</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter image URL" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Enter a URL for the farm image.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <DialogFooter>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsEditDialogOpen(true)}
+                  className="border-soil-200"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Updating..." : "Update Farm"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Farm Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -866,9 +856,12 @@ const FarmManagement = () => {
             <div className="p-4 mb-4 border border-soil-200 rounded-md bg-soil-50">
               <div className="flex items-center gap-3">
                 <img 
-                  src={selectedFarm.image} 
+                  src={selectedFarm.image ? `http://localhost:8081${selectedFarm.image}` : "/placeholder.svg"}
                   alt={selectedFarm.name} 
                   className="w-16 h-16 object-cover rounded-md border border-soil-200"
+                  onError={(e) => {
+                    e.currentTarget.src = "/placeholder.svg";
+                  }}
                 />
                 <div>
                   <div className="font-medium text-lg">{selectedFarm.name}</div>
@@ -938,7 +931,7 @@ const FarmManagement = () => {
           <AlertDialogFooter>
             <AlertDialogCancel className="border-soil-200">Cancel</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={() => handleDeleteFarm(selectedFarm?.id)} // Passer l'id de la ferme sélectionnée
+              onClick={() => handleDeleteFarm(selectedFarm?.id)}
               className="bg-error hover:bg-error/90"
             >
               Yes, Delete Farm

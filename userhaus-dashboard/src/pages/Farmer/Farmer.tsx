@@ -63,14 +63,18 @@ const Farmer = () => {
 
   // Charger les fruits après sélection d'une ferme
   const handleFarmSelect = (farm: Farm) => {
+    // Enregistrer la ferme sélectionnée et son image
     setSelectedFarm(farm);
-    localStorage.setItem("farmId", farm.id);
+    
+    // Mise à jour de l'étape
     setStep('fruit');
-
+  
+    // Récupérer les fruits de la ferme sélectionnée
     axios.get(`http://localhost:8081/zones/farm/${farm.id}`)
       .then(response => setFruits(response.data))
       .catch(error => console.error('Erreur lors du chargement des fruits', error));
   };
+  
 
   // Sélection d'un fruit pour afficher le tableau de bord
   const handleFruitSelect = (fruit: Fruit) => {

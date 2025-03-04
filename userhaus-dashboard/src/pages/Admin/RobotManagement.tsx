@@ -64,11 +64,12 @@ import {
 // Validation schema for robot form
 const robotSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
-  farmId: z.string().nullable(),
-  engineerId: z.string().nullable(),
+  farmId: z.string().nullable().optional(),  // Allow `null` and `undefined`
+  engineerId: z.string().nullable().optional(),  // Allow `null` and `undefined`
   status: z.enum(["available", "in-use", "maintenance"]),
   connectivity: z.enum(["online", "offline"]),
 });
+
 
 type RobotFormValues = z.infer<typeof robotSchema>;
 
@@ -781,7 +782,7 @@ const RobotManagement = () => {
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent  className="bg-white/80">
                         <SelectItem value="available">Available</SelectItem>
                         <SelectItem value="in-use">In Use</SelectItem>
                         <SelectItem value="maintenance">Maintenance</SelectItem>
@@ -807,7 +808,7 @@ const RobotManagement = () => {
                           <SelectValue placeholder="Select connectivity" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent  className="bg-white/80">
                         <SelectItem value="online">Online</SelectItem>
                         <SelectItem value="offline">Offline</SelectItem>
                       </SelectContent>
@@ -832,7 +833,7 @@ const RobotManagement = () => {
                           <SelectValue placeholder="Select a farm" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className="bg-white/80">
                         {farms.map((farm) => (
                           <SelectItem key={farm.id} value={farm.id}>
                             {farm.name}
@@ -860,7 +861,7 @@ const RobotManagement = () => {
                           <SelectValue placeholder="Select an engineer" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className="bg-white/80">
                         {engineers.map((engineer) => (
                           <SelectItem key={engineer.id} value={engineer.id}>
                             {engineer.first_name} {engineer.last_name}
@@ -1001,10 +1002,10 @@ const RobotManagement = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Assign to Engineer</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value || undefined}
-                    >
+                    <Select
+        onValueChange={field.onChange}
+        value={field.value || undefined}  
+      >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select an engineer" />

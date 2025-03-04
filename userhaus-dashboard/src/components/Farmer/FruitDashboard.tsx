@@ -27,20 +27,20 @@ const MyDocument = ({ farm }) => (
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Farm Information</Text>
-        <View style={styles.infoRow}><Text style={styles.label}>🌾 Name:</Text><Text>{farm.name}</Text></View>
-        <View style={styles.infoRow}><Text style={styles.label}>📍 Location:</Text><Text>{farm.location}</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}> Name:</Text><Text>{farm.name}</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}> Location:</Text><Text>{farm.location}</Text></View>
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Farm Status</Text>
-        <View style={styles.infoRow}><Text style={styles.label}>🌡 Temperature:</Text><Text>{farm.temperature}°C</Text></View>
-        <View style={styles.infoRow}><Text style={styles.label}>💧 Humidity:</Text><Text>{farm.humidity}%</Text></View>
-        <View style={styles.infoRow}><Text style={styles.label}>🌱 Soil pH:</Text><Text>6.5 (Optimal)</Text></View>
-        <View style={styles.infoRow}><Text style={styles.label}>🩺 Plant Health:</Text><Text>Good ✅</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}> Temperature:</Text><Text>{farm.temperature}°C</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}> Humidity:</Text><Text>{farm.humidity}%</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}> Soil pH:</Text><Text>6.5 (Optimal)</Text></View>
+        <View style={styles.infoRow}><Text style={styles.label}> Plant Health:</Text><Text>Good </Text></View>
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>AI Recommendations</Text>
-        <Text style={styles.recommendation}>✅ Optimal harvest time: In 5-7 days.</Text>
-        <Text style={styles.recommendation}>✅ Maintain current irrigation schedule.</Text>
+        <Text style={styles.recommendation}> Optimal harvest time: In 5-7 days.</Text>
+        <Text style={styles.recommendation}> Maintain current irrigation schedule.</Text>
       </View>
     </Page>
   </Document>
@@ -170,7 +170,7 @@ const FruitDashboard = ({ farm, fruit, onBack }: FruitDashboardProps) => {
           <div className="space-y-6">
             <div className="bg-white/70 backdrop-blur-sm rounded-xl overflow-hidden shadow-sm border border-soil-200">
               <img
-                src={fruit.image}
+                src="/tomato.jpg"
                 alt={fruit.name}
                 className="w-full h-64 object-cover"
               />

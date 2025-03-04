@@ -86,10 +86,13 @@ const RobotSelection = () => {
   return (
     <div className="space-y-8">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-gradient">Select Robot</h1>
-        <p className="text-soil-600">Choose a robot to deploy for farm scanning</p>
-      </div>
-
+    <h1 className="text-3xl font-bold text-soil-500 hover:text-soil-600">
+      Select Robot
+    </h1>
+    <p className="text-soil-500 hover:text-soil-600 font-semibold">
+      Choose a robot to deploy for farm scanning
+    </p>
+  </div>
       <div className="relative max-w-md mx-auto">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-soil-400" size={20} />
         <Input
@@ -111,7 +114,7 @@ const RobotSelection = () => {
               ${robot.status !== "available" ? "opacity-60" : ""}`}
           >
             <img
-              src={robot.image || "/placeholder.svg"}
+              src="/robot.png"
               alt={robot.name}
               className="w-full h-48 object-cover rounded-lg mb-4"
             />

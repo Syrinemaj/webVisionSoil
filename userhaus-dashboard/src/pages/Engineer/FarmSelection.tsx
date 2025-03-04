@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { AddFarmDialog } from "@/components/Engineer/AddFarmDialog";
 import { AddFarmerDialog } from "@/components/Engineer/AddFarmerDialog";
+
 const FarmSelection = () => {
   const navigate = useNavigate();
   const [farms, setFarms] = useState<any[]>([]);
@@ -34,13 +35,21 @@ const FarmSelection = () => {
     setSelectedFarm(farm);
     toast.success("Farm selected successfully");
     navigate(`/dashboard/${farm.id}`);
+    fetchFarms();
   };
 
   const handleAddFarm = (newFarm: any) => {
     setFarms((prevFarms) => [...prevFarms, newFarm]);
     toast.success("Farm created successfully!");
     setIsDialogOpen(false);
+    fetchFarms();
   };
+  <AddFarmDialog
+  open={isDialogOpen}
+  onOpenChange={setIsDialogOpen}
+  onFarmAdded={handleAddFarm}
+/>
+
 
   return (
     <div className="space-y-8 p-6">
@@ -51,11 +60,14 @@ const FarmSelection = () => {
       </div>
 
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-green-500 to-teal-600 bg-clip-text text-transparent">
-          Select a Farm
-        </h1>
-        <p className="text-gray-600">Choose a farm to begin monitoring</p>
-      </div>
+  <h1 className="text-3xl font-bold text-soil-500 hover:text-soil-600">
+    Select a Farm
+  </h1>
+  <p className="text-soil-500 hover:text-soil-600 font-semibold">
+    Choose a farm to begin monitoring
+  </p>
+  </div>
+
 
       <div className="relative max-w-md mx-auto">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-soil-400" size={20} />
@@ -68,22 +80,24 @@ const FarmSelection = () => {
         />
       </div>
 
-      <div className="flex justify-end">
-      <Button 
-            onClick={() => setIsAddFarmerDialogOpen(true)}
-            className="bg-soil-500 hover:bg-soil-600"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Farmer
-          </Button>
-        <Button
-          onClick={() => setIsDialogOpen(true)}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Farm
-        </Button>
-      </div>
+      <div className="flex justify-end gap-x-4">
+  <Button 
+    onClick={() => setIsAddFarmerDialogOpen(true)}
+    className="bg-soil-500 hover:bg-soil-600"
+  >
+    <Plus className="mr-2 h-4 w-4" />
+    Add Farmer
+  </Button>
+  <Button
+    onClick={() => setIsDialogOpen(true)}
+    className="bg-soil-500 hover:bg-soil-600"
+  >
+    <Plus className="mr-2 h-4 w-4" />
+    Add Farm
+   
+  </Button>
+</div>
+
 
       {farms.length === 0 ? (
         <p className="text-center text-gray-500">No farms available.</p>
@@ -119,7 +133,7 @@ const FarmSelection = () => {
         </div>
       )}
 
-     <AddFarmerDialog
+<AddFarmerDialog
         open={isAddFarmerDialogOpen}
         onOpenChange={setIsAddFarmerDialogOpen}
       />

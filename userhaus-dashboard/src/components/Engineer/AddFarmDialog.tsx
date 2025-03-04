@@ -69,7 +69,7 @@ export const AddFarmDialog = ({ open, onOpenChange, onFarmAdded }: AddFarmDialog
     if (formData.image) {
       formDataToSend.append("image", formData.image);
     }
-
+console.log(formDataToSend);
     try {
       const response = await fetch("http://localhost:8081/api/farm", {
         method: "POST",

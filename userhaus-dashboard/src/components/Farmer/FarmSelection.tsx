@@ -25,7 +25,7 @@ const FarmSelection = ({ farms, onSelect }: FarmSelectionProps) => {
         className="space-y-8"
       >
         <div className="text-center space-y-4">
-          <h1 className="text-4xl font-semibold text-soil-900">Select Your Farm</h1>
+          <h1 className="text-3xl font-bold text-soil-500 hover:text-soil-600">Select Your Farm</h1>
           <p className="text-soil-700">Choose a farm to view its details and manage crops</p>
         </div>
 
@@ -59,7 +59,7 @@ const FarmSelection = ({ farms, onSelect }: FarmSelectionProps) => {
               <div className="bg-white/70 backdrop-blur-sm rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-soil-200">
                 <div className="relative h-48">
                   <img
-                    src={farm.image}
+                    src="/farm.jpg"
                     alt={farm.name}
                     className="w-full h-full object-cover"
                   />
